@@ -13,6 +13,7 @@
 
   let ws = null;
   let isReconnecting = false;
+  let disconnectedAt = 0;
   
   function connectWebSocket() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -22,15 +23,26 @@
     ws.onopen = () => {
       console.log("[Xania] WebSocket connected");
       if (isReconnecting) {
-        console.log("[FastRefresh] Server restarted. Remounting components...");
-        isReconnecting = false;
-        App.mount();
+        const downtime = Date.now() - disconnectedAt;
+        // Only reload if the server was actually down for >2s (real restart)
+        // Brief disconnects (event handler errors) should NOT cause a reload
+        if (downtime > 2000) {
+          console.log("[FastRefresh] Server restarted. Reloading page...");
+          location.reload();
+        } else {
+          console.log("[Xania] WebSocket recovered from brief disconnect");
+        }
       }
+      isReconnecting = false;
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.error) {
+          console.warn("[Xania] Server error:", data.error);
+          return;
+        }
         if (data.updates) {
           App.applyUpdates(data.updates);
         }
@@ -41,8 +53,9 @@
 
     ws.onclose = () => {
       if (!isReconnecting) {
-        console.warn("[Xania] WebSocket closed. Server restarting?");
+        console.warn("[Xania] WebSocket closed. Reconnecting...");
         isReconnecting = true;
+        disconnectedAt = Date.now();
       }
       setTimeout(connectWebSocket, 500);
     };
@@ -60,6 +73,8 @@
     }
     return curr;
   }
+
+  const pendingOptimistic = new Map(); // element -> rollback snapshot
 
   function applyPatches(root, patches) {
     for (const p of patches) {
@@ -88,8 +103,6 @@
             } else if (p.value[key] === true) {
               target.setAttribute(key, "");
             } else {
-              // Special case: updating 'value' on inputs causes cursor jumps.
-              // We must set the property directly, and only if it actually changed.
               if (key === "value" && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
                 if (target.value !== String(p.value[key])) {
                   target.value = p.value[key];
@@ -98,6 +111,14 @@
                 target.setAttribute(key, p.value[key]);
               }
             }
+          }
+          break;
+        case "update_classes":
+          if (p.value.remove && p.value.remove.length > 0) {
+            target.classList.remove(...p.value.remove);
+          }
+          if (p.value.add && p.value.add.length > 0) {
+            target.classList.add(...p.value.add);
           }
           break;
         case "insert": {
@@ -119,12 +140,32 @@
     }
   }
 
+  function rollbackOptimistic(node) {
+      const snap = pendingOptimistic.get(node);
+      if (snap) {
+          if (snap.html !== undefined) node.innerHTML = snap.html;
+          node.className = snap.className;
+      }
+      if (node.dataset) {
+          delete node.dataset.optimisticPending;
+      }
+      pendingOptimistic.delete(node);
+  }
+
   App.applyUpdates = function applyUpdates(updates) {
     if (!Array.isArray(updates)) return;
     for (const u of updates) {
       if (!u || !u.id) continue;
       const el = document.getElementById(u.id);
       if (!el) continue;
+      
+      // Rollback optimistic UI before resolving paths for patches
+      const pendingElements = el.querySelectorAll("[data-optimistic-pending]");
+      if (el.dataset && el.dataset.optimisticPending) {
+          rollbackOptimistic(el);
+      }
+      pendingElements.forEach(rollbackOptimistic);
+
       if (u.patches && u.patches.length > 0) {
         applyPatches(el, u.patches);
       } else if (u.html != null) {
@@ -163,6 +204,31 @@
     if (!serverEventsEnabled()) {
         console.warn("Server events disabled.");
         return;
+    }
+
+    if (sourceElement && sourceElement.dataset.optimistic) {
+      try {
+        const hint = JSON.parse(sourceElement.dataset.optimistic);
+        const snapshot = {
+            html: sourceElement.innerHTML,
+            className: sourceElement.className,
+        };
+        pendingOptimistic.set(sourceElement, snapshot);
+        sourceElement.dataset.optimisticPending = "true";
+        
+        if (hint.text) sourceElement.textContent = hint.text;
+        if (hint.class_add) sourceElement.classList.add(...hint.class_add.split(" "));
+        if (hint.class_remove) sourceElement.classList.remove(...hint.class_remove.split(" "));
+        
+        // Rollback after 5s if no server patch
+        setTimeout(() => {
+            if (sourceElement.dataset && sourceElement.dataset.optimisticPending) {
+                rollbackOptimistic(sourceElement);
+            }
+        }, 5000);
+      } catch (e) {
+        console.error("Failed to parse optimistic hint:", e);
+      }
     }
 
     const msg = JSON.stringify({ component, action, payload: payload || {} });
@@ -228,22 +294,45 @@
   // --- SPA Router ---
   async function performSPANavigation(path) {
     try {
+      const appRoot = document.getElementById("app_root");
+      const currentComponent = appRoot ? appRoot.getAttribute("data-component") : "";
+      
       const resp = await fetch(path, {
-        headers: { "X-Xania-SPA": "true" }
+        headers: { 
+            "X-Xania-SPA": "true",
+            "X-Xania-Current-Component": currentComponent
+        }
       });
       if (!resp.ok) {
         location.href = path;
         return;
       }
       const data = await resp.json();
-      const appRoot = document.getElementById("app_root");
+      
       if (appRoot && data.html) {
-        // Use innerHTML to preserve the mount point div itself
-        appRoot.innerHTML = data.html;
-        
-        // Update the data-component so WebSocket events route correctly
-        if (data.component) {
-          appRoot.setAttribute("data-component", data.component);
+        // If the server tells us what slot changed, swap only that slot
+        if (data.slot) {
+          const slotSelector = `[data-xania-slot="${data.slot}"]`;
+          // Find the innermost slot with this name. Wait, querySelector finds the first (outermost).
+          // We can use querySelectorAll and pick the last one (innermost).
+          const slots = document.querySelectorAll(slotSelector);
+          const targetSlot = slots.length > 0 ? slots[slots.length - 1] : appRoot;
+          targetSlot.innerHTML = data.html;
+          
+          if (data.component) {
+            targetSlot.setAttribute("data-component", data.component);
+            // We also need to update the top-level app_root if it's different? No, app_root should always track the current page component.
+            // Wait, if the page component changes, app_root should track it so next navigation knows what the current component is.
+            appRoot.setAttribute("data-component", data.component);
+          }
+        } else {
+          // Use innerHTML to preserve the mount point div itself
+          appRoot.innerHTML = data.html;
+          
+          // Update the data-component so WebSocket events route correctly
+          if (data.component) {
+            appRoot.setAttribute("data-component", data.component);
+          }
         }
         
         if (data.title) {
@@ -274,6 +363,38 @@
         performSPANavigation(path);
       }
     }
+  });
+
+  document.addEventListener("submit", (e) => {
+    const form = e.target;
+    if (form.tagName !== "FORM") return;
+    e.preventDefault();
+    const formData = new FormData(form);
+    
+    // Robust serialization: handles multi-selects, checkboxes, radio groups
+    const payload = {};
+    for (const [key, value] of formData.entries()) {
+        if (key in payload) {
+            // Multiple values for same key -> convert to array
+            if (!Array.isArray(payload[key])) {
+                payload[key] = [payload[key]];
+            }
+            payload[key].push(value);
+        } else {
+            payload[key] = value;
+        }
+    }
+    
+    // Handle unchecked checkboxes (they're not in FormData by default)
+    form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        if (!(cb.name in payload)) {
+            payload[cb.name] = false;
+        }
+    });
+    
+    const action = form.getAttribute("data-action") || "submit";
+    // We need to pass the form element so we can resolve [data-component]
+    App.dispatch(form, action, payload);
   });
 
   window.addEventListener("popstate", () => {

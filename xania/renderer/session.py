@@ -10,6 +10,7 @@ class SessionStore(Protocol):
     def get(self, session_id: str, component_name: str) -> Component | None: ...
     def set(self, session_id: str, component_name: str, component: Component) -> None: ...
     def delete(self, session_id: str) -> None: ...
+    def delete_component(self, session_id: str, component_name: str) -> None: ...
 
 
 class InMemorySessionStore:
@@ -38,13 +39,34 @@ class InMemorySessionStore:
     def delete(self, session_id: str) -> None:
         keys_to_delete = [k for k in self._store.keys() if k[0] == session_id]
         for k in keys_to_delete:
-            del self._store[k]
+            self._unmount_and_delete(k)
+            
+    def delete_component(self, session_id: str, component_name: str) -> None:
+        key = (session_id, component_name)
+        if key in self._store:
+            self._unmount_and_delete(key)
+            
+    def _unmount_and_delete(self, key: tuple[str, str]) -> None:
+        comp, _ = self._store[key]
+        if hasattr(comp, "unmount"):
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                if asyncio.iscoroutinefunction(comp.unmount):
+                    loop.create_task(comp.unmount())
+                else:
+                    loop.run_in_executor(None, comp.unmount)
+            except RuntimeError:
+                # No running event loop
+                if not asyncio.iscoroutinefunction(comp.unmount):
+                    comp.unmount()
+        del self._store[key]
             
     def _cleanup(self) -> None:
         now = time.time()
         expired = [k for k, v in self._store.items() if now > v[1]]
         for k in expired:
-            del self._store[k]
+            self._unmount_and_delete(k)
 
 
 class CookieSessionStore:

@@ -9,6 +9,16 @@ class State:
     """
     Flat state container with persistent hook storage.
 
+    STATE SERIALIZATION RULES:
+    
+    Component state MUST contain only JSON-serializable primitives:
+    - str, int, float, bool, None, list, dict
+    - (NO database connections, file handles, or complex class instances)
+    
+    Non-serializable resources should be stored as instance attributes 
+    on the Component itself (self.db = ...), NOT in self.state. These 
+    resources are re-established in mount() when a component is restored.
+
     Client-sent `state` is a dict where user keys are at top-level and hook
     values are stored under `__hooks__`.
     """
@@ -36,9 +46,27 @@ class State:
             return
         self._data[name] = value
 
+    def update(self, new_data: dict[str, Any]) -> None:
+        self._data.update(new_data)
+
     def to_dict(self) -> dict[str, Any]:
+        import json
         hooks = [self._serialize_hook(h) for h in self._hooks]
-        return {**self._data, self.HOOKS_KEY: hooks}
+        result = {**self._data, self.HOOKS_KEY: hooks}
+        
+        # Debug-mode validation: ensure state is JSON-serializable
+        if __debug__:
+            try:
+                json.dumps(result)
+            except TypeError as e:
+                raise TypeError(
+                    f"State contains non-serializable value: {e}. "
+                    f"Store resources (DB connections, file handles) on the Component "
+                    f"instance (self.db = ...), not in self.state. "
+                    f"Use mount() to re-establish resources after deserialization."
+                ) from e
+                
+        return result
 
     @staticmethod
     def _deserialize_hook(h: Any) -> Any:

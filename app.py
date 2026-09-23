@@ -78,6 +78,37 @@ def cli(ctx: click.Context, host: str, port: int, reload: bool) -> None:
         uvicorn.run("app:app", host=host, port=port, reload=reload)
 
 
+@cli.command(name="dev")
+@click.option("--host", "-H", default="127.0.0.1", show_default=True)
+@click.option("--port", "-p", default=8000, show_default=True, type=int)
+def dev(host: str, port: int) -> None:
+    """Run the Xania server in development mode with HMR and hot-reloading."""
+    click.echo(f"Starting Xania DEV server on {host}:{port} with FastRefresh")
+    uvicorn.run("app:app", host=host, port=port, reload=True)
+
+@cli.group()
+def cache() -> None:
+    """Manage Xania cache."""
+    pass
+
+@cache.command(name="clear")
+def clear() -> None:
+    """Clear all Xania caches (ISR, Images, etc)."""
+    from pathlib import Path
+    import shutil
+    
+    # Clear image cache
+    cache_dir = Path(".xania_cache")
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+        click.echo("Cleared on-disk cache.")
+        
+    # Clear ISR Cache (in-memory)
+    # Since this is a CLI command, it runs in a different process. 
+    # To truly clear in-memory cache, we'd need to send a signal or hit an admin endpoint.
+    # We will just print a note for now.
+    click.echo("Note: In-memory ISR cache can only be cleared by restarting the server.")
+
 @cli.command(name="build")
 @click.option("--out", "-o", default=".", type=click.Path(), show_default=True)
 def build(out: str) -> None:

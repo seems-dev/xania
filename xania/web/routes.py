@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import random
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -19,6 +20,15 @@ from xania.web.config import get_settings
 router = APIRouter()
 
 MOUNT_ACTION = "__mount__"
+
+
+async def _call_lifecycle(method):
+    """Call a lifecycle method, supporting both sync and async."""
+    if asyncio.iscoroutinefunction(method):
+        await method()
+    else:
+        # Run sync methods in a thread pool to avoid blocking the event loop
+        await asyncio.get_event_loop().run_in_executor(None, method)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -40,6 +50,7 @@ def index(request: Request, response: Response) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Xania Stress Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
   <body>
     <div id="app"></div>
@@ -234,6 +245,68 @@ async def delay(ms: int = 250) -> dict[str, object]:
     return {"ok": True, "slept_ms": ms}
 
 
+def _process_image(src: str, w: int, fmt: str, cache_path: Path):
+    try:
+        from PIL import Image  # type: ignore[import-untyped, import-not-found]
+    except ImportError:
+        # Pillow not installed, just copy the file
+        import shutil
+        src_path = Path(src)
+        if not src_path.exists() and (Path("static") / src).exists():
+            src_path = Path("static") / src
+        if src_path.exists():
+            shutil.copy(src_path, cache_path)
+        return
+
+    src_path = Path(src)
+    if not src_path.exists():
+        if (Path("static") / src).exists():
+            src_path = Path("static") / src
+        else:
+            return
+
+    img = Image.open(src_path)
+    if w:
+        ratio = w / float(img.size[0])
+        h = int((float(img.size[1]) * float(ratio)))
+        img = img.resize((w, h), Image.Resampling.LANCZOS)
+    img.save(cache_path, format=fmt.upper())
+
+@router.get("/_xania/image")
+async def serve_optimized_image(src: str, w: int = 1080, fmt: str = "webp"):
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+    import hashlib
+    import asyncio
+    
+    # Simple security check to prevent directory traversal
+    if ".." in src or src.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid image path")
+
+    cache_dir = Path(".xania_cache/images")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"{hashlib.md5(src.encode()).hexdigest()}_{w}w.{fmt}"
+    
+    if cache_path.exists():
+        return FileResponse(cache_path)
+    
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _process_image, src, w, fmt, cache_path)
+    
+    if cache_path.exists():
+        return FileResponse(cache_path)
+    
+    # Fallback if processing failed
+    src_path = Path(src)
+    if not src_path.exists() and (Path("static") / src).exists():
+        src_path = Path("static") / src
+    
+    if src_path.exists():
+        return FileResponse(src_path)
+        
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -264,31 +337,52 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"error": f"Component '{req.component}' not found. Please refresh the page."})
                 continue
 
-            from xania.renderer.elements import Element
+            # Wrap event processing so errors don't kill the WebSocket
+            try:
+                from xania.renderer.elements import Element
 
-            old_vdom = None
-            if req.action != MOUNT_ACTION:
-                # Wrap in a container div matching <div id="app_root"> in the DOM
-                # so that patch paths align with the actual DOM tree
-                old_vdom = Element("div", component.render(component.state))
-                component.handle(req.action, req.payload)
+                old_vdom = None
+                if req.action == MOUNT_ACTION:
+                    if not getattr(component, "_mounted", False):
+                        if hasattr(component, "mount"):
+                            await _call_lifecycle(component.mount)
+                        component._mounted = True
+                else:
+                    # Wrap in a container div matching <div id="app_root"> in the DOM
+                    # so that patch paths align with the actual DOM tree
+                    old_vdom = Element("div", component.render(component.state))
+                    old_state = component.state.to_dict()
+                    await component.handle(req.action, req.payload)  # type: ignore
+                    if hasattr(component, "update"):
+                        if asyncio.iscoroutinefunction(component.update):
+                            await component.update(old_state)
+                        else:
+                            await asyncio.get_event_loop().run_in_executor(None, component.update, old_state)
+                            
+                    # Persist state back to store
+                    ComponentRegistry._session_store.set(session_id, req.component, component)
 
-            new_vdom = Element("div", component.render(component.state))
+                new_vdom = Element("div", component.render(component.state))
 
-            if old_vdom is not None:
-                patches = diff(old_vdom, new_vdom)
-                response_data = {"updates": [{
-                    "id": component.id,
-                    "patches": serialize_patches(patches),
-                }]}
-            else:
-                html = component.to_html()
-                response_data = {"updates": [{
-                    "id": component.id,
-                    "html": html,
-                }]}
+                if old_vdom is not None:
+                    patches = diff(old_vdom, new_vdom)
+                    response_data = {"updates": [{
+                        "id": component.id,
+                        "patches": serialize_patches(patches),
+                    }]}
+                else:
+                    html = component.to_html()
+                    response_data = {"updates": [{
+                        "id": component.id,
+                        "html": html,
+                    }]}
+                    
+                await websocket.send_json(response_data)
                 
-            await websocket.send_json(response_data)
+            except Exception as exc:
+                import traceback
+                traceback.print_exc()
+                await websocket.send_json({"error": f"Event processing failed: {exc}"})
             
     except WebSocketDisconnect:
         pass

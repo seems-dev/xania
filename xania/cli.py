@@ -147,7 +147,7 @@ class Page(Component):
                 Button(
                     f"Clicked {state.clicks} times", 
                     class_name="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-blue-700 transition-colors cursor-pointer",
-                    onclick="App.dispatch(this, 'click')"
+                    onclick=self.action("click")
                 ),
                 class_name="p-6 bg-white rounded-xl shadow-sm border"
             )

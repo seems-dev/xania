@@ -10,6 +10,7 @@ class Settings:
     secret_key: str
     cookie_secure: bool
     session_ttl_seconds: int
+    redis_url: str | None
 
     @property
     def is_dev(self) -> bool:
@@ -35,8 +36,25 @@ def get_settings() -> Settings:
         secure = False
     else:
         secure = not is_dev
+        
+    redis_url = os.getenv("XANIA_REDIS_URL")
 
-    return Settings(env=env, secret_key=secret, cookie_secure=secure, session_ttl_seconds=ttl_s)
+    settings = Settings(
+        env=env, 
+        secret_key=secret, 
+        cookie_secure=secure, 
+        session_ttl_seconds=ttl_s,
+        redis_url=redis_url
+    )
+    
+    # Auto-configure Redis Session Store if URL is provided
+    if redis_url:
+        from xania.renderer.registry import ComponentRegistry
+        from xania.renderer.redis_session import RedisSessionStore
+        store = RedisSessionStore(redis_url=redis_url, ttl_seconds=ttl_s)
+        ComponentRegistry.configure_store(store)
+        
+    return settings
 
 
 __all__ = ["Settings", "get_settings"]

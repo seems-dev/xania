@@ -18,6 +18,8 @@ def _normalize_attr_name(name: str) -> str:
         return "for"
     if name == "http_equiv":
         return "http-equiv"
+    if name.startswith("_at_"):
+        return "@" + name[4:]
     return name.replace("_", "-")
 
 def serialize_patches(patches: list[Patch]) -> list[dict]:
@@ -90,15 +92,25 @@ def diff(old: Element | str | None, new: Element | str | None, path: list[int] =
         
         # 2. Diff Attributes
         attr_changes = {}
+        class_changes = {}
         all_keys = set(old.attrs.keys()) | set(new.attrs.keys())
         for k in all_keys:
             old_val = old.attrs.get(k)
             new_val = new.attrs.get(k)
             if old_val != new_val:
-                attr_changes[k] = new_val if new_val is not None else None
+                if k in ("class", "class_name"):
+                    old_classes = set((old_val or "").split())
+                    new_classes = set((new_val or "").split())
+                    class_changes["add"] = list(new_classes - old_classes)
+                    class_changes["remove"] = list(old_classes - new_classes)
+                else:
+                    attr_changes[k] = new_val if new_val is not None else None
                 
         if attr_changes:
             patches.append(Patch("update_attrs", path, attr_changes))
+            
+        if class_changes and (class_changes["add"] or class_changes["remove"]):
+            patches.append(Patch("update_classes", path, class_changes))
             
         # 3. Diff Children
         old_len = len(old.children)

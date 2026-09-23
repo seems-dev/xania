@@ -19,6 +19,7 @@ class Component:
 
     id: str
     state: State = field(default_factory=State)
+    _mounted: bool = False
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -32,11 +33,42 @@ class Component:
 
     def render(self, state: State) -> Element | str:
         raise NotImplementedError
+        
+    def mount(self) -> None:
+        """Called once when the component is first rendered to a user session.
+        
+        Can be defined as `async def mount(self)` for async I/O operations.
+        Synchronous mount() will be run in a thread pool to avoid blocking
+        the async event loop.
+        """
+        pass
 
-    def handle(self, action: str, payload: dict[str, Any]) -> None:
+    def update(self, old_state: dict[str, Any]) -> None:
+        """Called before re-render when state has changed.
+        
+        `old_state` is a shallow JSON snapshot (dict) of the previous state,
+        NOT a deep copy of the State object. See State Serialization Rules.
+        
+        Can be defined as `async def update(self, old_state)` for async I/O.
+        """
+        pass
+
+    def unmount(self) -> None:
+        """Called when the component is removed (navigation away, session expiry).
+        
+        Use this to clean up database connections, background tasks, etc.
+        Can be defined as `async def unmount(self)` for async cleanup.
+        """
+        pass
+
+    async def handle(self, action: str, payload: dict[str, Any]) -> None:
         handler = getattr(self, f"on_{action}", None)
         if handler:
-            handler(self.state, payload)
+            import asyncio
+            if asyncio.iscoroutinefunction(handler):
+                await handler(self.state, payload)
+            else:
+                handler(self.state, payload)
 
     def action(self, name: str, **payload: Any) -> str:
         """Generate an onclick JS string automatically.

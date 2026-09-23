@@ -9,7 +9,15 @@ from typing import Any
 class Element:
     def __init__(self, tag: str, *children: Any, **attrs: Any) -> None:
         self.tag = tag
-        self.children: tuple[Any, ...] = children
+        
+        flat_children = []
+        for child in children:
+            if isinstance(child, (list, tuple)):
+                flat_children.extend(child)
+            else:
+                flat_children.append(child)
+                
+        self.children: tuple[Any, ...] = tuple(flat_children)
         self.attrs: dict[str, Any] = attrs
 
     def render_attrs(self) -> str:
@@ -21,7 +29,12 @@ class Element:
                 key = "for"
             elif key == "http_equiv":
                 key = "http-equiv"
-            key = key.replace("_", "-")
+            
+            if key.startswith("_at_"):
+                key = "@" + key[4:]
+            else:
+                key = key.replace("_", "-")
+                
             if isinstance(value, bool):
                 if value:
                     attrs_str += f" {key}"
@@ -114,7 +127,11 @@ def component(func: Any = None):
                     k = "for"
                 elif k == "http_equiv":
                     k = "http-equiv"
-                raw_attrs[k.replace("_", "-")] = v
+                    
+                if k.startswith("_at_"):
+                    raw_attrs["@" + k[4:]] = v
+                else:
+                    raw_attrs[k.replace("_", "-")] = v
             result["attrs"] = raw_attrs
 
         if children:
@@ -147,7 +164,11 @@ class VoidElement(Element):
                     k = "class"
                 elif k == "for_":
                     k = "for"
-                raw_attrs[k.replace("_", "-")] = v
+                    
+                if k.startswith("_at_"):
+                    raw_attrs["@" + k[4:]] = v
+                else:
+                    raw_attrs[k.replace("_", "-")] = v
             result["attrs"] = raw_attrs
         return result
 
@@ -246,6 +267,20 @@ def Td(*children: Any, **attrs: Any) -> Element:
     return Element("td", *children, **attrs)
 
 def Form(*children: Any, **attrs: Any) -> Element:
+    """
+    Form element.
+    
+    Submitting a Form is automatically intercepted and sent over WebSocket.
+    Set `data_action` to route to a component handler.
+    Example:
+    ```python
+    Form(
+        Input(name="email"),
+        Button("Submit", type="submit"),
+        data_action="create_user" # Calls on_create_user(state, payload)
+    )
+    ```
+    """
     return Element("form", *children, **attrs)
 
 def Select(*children: Any, **attrs: Any) -> Element:
@@ -352,6 +387,16 @@ def Sup(*children: Any, **attrs: Any) -> Element:
     return Element("sup", *children, **attrs)
 
 def Button(*children: Any, **attrs: Any) -> Element:
+    """
+    Button element.
+    
+    Optimistic UI hint:
+    Use `data_optimistic` to provide JSON hints for immediate UI updates.
+    Example:
+    ```python
+    Button("Like", onclick=self.action("like"), data_optimistic='{"text": "Liked!", "class_add": "text-red-500"}')
+    ```
+    """
     return Element("button", *children, **attrs)
 
 # ─────────────────────────────────────────────
@@ -375,6 +420,12 @@ def Link(**attrs: Any) -> VoidElement:
 
 def Meta(**attrs: Any) -> VoidElement:
     return VoidElement("meta", **attrs)
+
+def Slot(*children: Any, name: str = "children", **attrs: Any) -> Element:
+    """A placeholder for children passed from a parent layout."""
+    attrs["data-xania-slot"] = name
+    return Element("div", *children, **attrs)
+
 
 
 def tw(*classes: str) -> str:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xania"
-version = "3.0.1"
+version = "3.0.2"
 description = "A minimal React-like Python UI framework on FastAPI (CSR runtime + component model)."
 readme = "README.md"
 requires-python = ">=3.12"

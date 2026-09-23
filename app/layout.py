@@ -1,4 +1,4 @@
-from xania.renderer.elements import Div, Nav, A
+from xania.renderer.elements import Div, Nav, A, Slot
 
 def Layout(children):
     return Div(
@@ -8,6 +8,6 @@ def Layout(children):
             A("User 123", href="/users/123", class_name="text-blue-400 hover:underline"),
             class_name="p-4 bg-gray-900 border-b border-gray-800"
         ),
-        Div(children, class_name="p-8"),
+        Slot(children, name="children", class_name="p-8"),
         class_name="min-h-screen bg-gray-950 text-white font-sans"
     )
