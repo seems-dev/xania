@@ -11,6 +11,9 @@ from xania.renderer.registry import ComponentRegistry
 from xania.web.auth import AuthManager, Session, get_auth_manager, require_csrf, require_role, require_session
 from xania.web.ratelimit import limiter
 from xania.web.schemas import EventRequest, EventResponse, Update
+from fastapi import WebSocket, WebSocketDisconnect
+import json
+from xania.web.config import get_settings
 
 
 router = APIRouter()
@@ -19,9 +22,17 @@ MOUNT_ACTION = "__mount__"
 
 
 @router.get("/", response_class=HTMLResponse)
-def index() -> str:
-    # SPA shell: the backend serves only the HTML entrypoint + static assets.
-    # Client-side routing is handled by `xania/static/spa_runtime.js`.
+def index(request: Request, response: Response) -> str:
+    import uuid
+    session_id = request.cookies.get("xania_session_id")
+    if not session_id:
+        session_id = uuid.uuid4().hex
+        response.set_cookie(
+            "xania_session_id",
+            session_id,
+            httponly=True,
+            samesite="lax"
+        )
     return """<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -223,26 +234,74 @@ async def delay(ms: int = 250) -> dict[str, object]:
     return {"ok": True, "slept_ms": ms}
 
 
-@router.post("/event", response_model=EventResponse)
-def event(req: EventRequest) -> EventResponse:
-    component = ComponentRegistry.get(req.component)
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    
+    import uuid
+    from xania.engine.differ import diff, serialize_patches
+    
+    session_id = websocket.cookies.get("xania_session_id")
+    if not session_id:
+        # Without a session from the initial page load, we can't reliably map state.
+        await websocket.close(code=1008, reason="Missing session cookie")
+        return
 
-    # Important: no server requests are triggered automatically by state changes.
-    # Only explicit App.dispatch() events call this endpoint.
-    if req.action != MOUNT_ACTION:
-        component.handle(req.action, req.payload)
+    try:
+        while True:
+            # Wait for any message from the client
+            data_str = await websocket.receive_text()
+            try:
+                data = json.loads(data_str)
+                req = EventRequest(**data)
+            except Exception:
+                continue # Ignore malformed
 
-    html = component.to_html()
-    return EventResponse(updates=[Update(id=component.id, html=html)])
+            try:
+                component = ComponentRegistry.get(req.component, session_id)
+            except KeyError:
+                # Component not yet registered (user might need to refresh the page)
+                await websocket.send_json({"error": f"Component '{req.component}' not found. Please refresh the page."})
+                continue
+
+            from xania.renderer.elements import Element
+
+            old_vdom = None
+            if req.action != MOUNT_ACTION:
+                # Wrap in a container div matching <div id="app_root"> in the DOM
+                # so that patch paths align with the actual DOM tree
+                old_vdom = Element("div", component.render(component.state))
+                component.handle(req.action, req.payload)
+
+            new_vdom = Element("div", component.render(component.state))
+
+            if old_vdom is not None:
+                patches = diff(old_vdom, new_vdom)
+                response_data = {"updates": [{
+                    "id": component.id,
+                    "patches": serialize_patches(patches),
+                }]}
+            else:
+                html = component.to_html()
+                response_data = {"updates": [{
+                    "id": component.id,
+                    "html": html,
+                }]}
+                
+            await websocket.send_json(response_data)
+            
+    except WebSocketDisconnect:
+        pass
+
 
 
 @router.get("/{full_path:path}", response_class=HTMLResponse)
-def spa_fallback(full_path: str) -> str:
+def spa_fallback(request: Request, response: Response, full_path: str) -> str:
     # History API fallback so refresh works on routes like `/about`.
     # Excludes API paths and static assets (served by app.mount()).
     if full_path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not Found")
-    return index()
+    return index(request, response)
 
 
 __all__ = ["router", "MOUNT_ACTION"]

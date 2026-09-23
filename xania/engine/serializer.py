@@ -35,6 +35,25 @@ def serialize(node: Element | str | None) -> str:
     if isinstance(node, str):
         return escape(node)
 
+    from xania.renderer.elements import LazyElement, ProviderElement
+    
+    if isinstance(node, LazyElement):
+        # Evaluate the component and serialize the resulting tree
+        return serialize(node.func(*node.args, **node.kwargs))
+        
+    if isinstance(node, ProviderElement):
+        # Push context, serialize children, pop context
+        stack = node.context._var.get()
+        if stack is None:
+            stack = []
+        new_stack = stack + [node.value]
+        token = node.context._var.set(new_stack)
+        try:
+            children_html = "".join(serialize(c if isinstance(c, (Element, str)) else str(c)) for c in node.children if c is not None)
+            return f'<div style="display: contents;">{children_html}</div>'
+        finally:
+            node.context._var.reset(token)
+
     if isinstance(node, VoidElement):
         attrs = _serialize_attrs(node.attrs)
         return f"<{node.tag}{attrs} />"

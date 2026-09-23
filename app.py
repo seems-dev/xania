@@ -18,7 +18,13 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     # Register example components.
-    ComponentRegistry.register("Counter", Counter(id="counter"))
+    ComponentRegistry.register("Counter", Counter, id="counter")
+
+    # File-system router (Next.js style App Router)
+    from xania.routing import build_fastapi_router
+    app_dir = Path(__file__).parent / "app"
+    if app_dir.exists():
+        build_fastapi_router(app, app_dir)
 
     # API routes.
     app.include_router(router)

@@ -29,6 +29,71 @@ class Element:
                 attrs_str += f' {key}="{value}"'
         return attrs_str
 
+    def __repr__(self) -> str:
+        return f"Element(tag={self.tag!r}, children={self.children!r}, attrs={self.attrs!r})"
+
+class LazyElement(Element):
+    """Holds a reference to a functional component and its arguments for lazy evaluation."""
+    def __init__(self, func: Any, *args: Any, **kwargs: Any) -> None:
+        super().__init__("")  # No tag
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
+
+    def evaluate(self) -> Any:
+        return self.func(*self.args, **self.kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        result = self.evaluate()
+        if isinstance(result, Element):
+            return result.to_dict()
+        return {"tag": "", "children": [str(result)]}
+
+class ProviderElement(Element):
+    """Evaluates children inside a Context.Provider."""
+    def __init__(self, context: Any, value: Any, children: Any) -> None:
+        super().__init__("") # No tag
+        self.context = context
+        self.value = value
+        self.children = tuple(children) if isinstance(children, (list, tuple)) else (children,)
+
+    def to_dict(self) -> dict[str, Any]:
+        stack = self.context._var.get()
+        if stack is None:
+            stack = []
+        new_stack = stack + [self.value]
+        token = self.context._var.set(new_stack)
+        try:
+            children = []
+            for child in self.children:
+                if isinstance(child, Element):
+                    children.append(child.to_dict())
+                elif child is not None:
+                    children.append(str(child))
+            
+            # Since ProviderElement shouldn't appear in the DOM as a tag,
+            # we can return a transparent wrapper dict that differ.py can flatten,
+            # or we can just flatten it here! But wait, `to_dict` returns a single dict.
+            # If we flatten it here, a Provider returning multiple children would break the `dict` signature.
+            # Let's return a special `<provider>` dict that differ.py can handle, or just a `div` for simplicity.
+            # No, if we return `{"tag": "fragment", "children": children}`, differ.py might need to handle it.
+            # For now, let's just make ProviderElement a logical `<div class="provider-wrapper" style="display:contents;">`
+            # to keep VDOM diffing easy without refactoring differ.py to handle fragments!
+            return {"tag": "div", "attrs": {"style": "display: contents;"}, "children": children}
+        finally:
+            self.context._var.reset(token)
+
+def component(func: Any = None):
+    """Decorator to make functional components evaluate lazily."""
+    if func is None:
+        return component
+    
+    import functools
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> LazyElement:
+        return LazyElement(func, *args, **kwargs)
+    return wrapper
+
     def to_dict(self) -> dict[str, Any]:
         """Convert Element tree → dict so Render can consume it."""
         children = []

@@ -38,9 +38,28 @@ class Component:
         if handler:
             handler(self.state, payload)
 
+    def action(self, name: str, **payload: Any) -> str:
+        """Generate an onclick JS string automatically.
+
+        Usage:
+            Button("Click me", onclick=self.action("increment"))
+        """
+        import json as _json
+        if payload:
+            return f"App.dispatch(this,'{name}',{_json.dumps(payload)})"
+        return f"App.dispatch(this,'{name}')"
+
     def to_html(self) -> str:
         self.state.reset_hooks()
         return render_html(self.render(self.state))
+        
+    def to_state_dict(self) -> dict[str, Any]:
+        """Serialize component state for session storage."""
+        return self.state.to_dict()
+
+    def load_state_dict(self, data: dict[str, Any]) -> None:
+        """Restore component state from session storage."""
+        self.state = State(**data)
 
 
 __all__ = ["Component", "useState", "useRef"]

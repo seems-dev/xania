@@ -9,11 +9,14 @@ class EventRequest(BaseModel):
     component: str = Field(..., min_length=1)
     action: str = Field(..., min_length=1)
     payload: Dict[str, Any] = Field(default_factory=dict)
+    state: Optional[Dict[str, Any]] = None  # Client-owned state (cookie mode)
 
 
 class Update(BaseModel):
     id: str = Field(..., min_length=1)
-    html: str
+    html: Optional[str] = None      # Full HTML (first render / fallback)
+    patches: Optional[list] = None  # Granular patches (subsequent renders)
+    state: Optional[Dict[str, Any]] = None  # Updated state to store client-side
 
 
 class EventResponse(BaseModel):
