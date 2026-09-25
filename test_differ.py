@@ -19,12 +19,21 @@ def test_text_change():
     assert patches[0].path == [0]
 
 def test_attr_change():
+    old = Div("A", id="foo")
+    new = Div("A", id="bar")
+    patches = diff(old, new)
+    assert len(patches) == 1
+    assert patches[0].type == "update_attrs"
+    assert patches[0].value == {"id": "bar"}
+
+def test_class_change():
     old = Div("A", class_name="foo")
     new = Div("A", class_name="bar")
     patches = diff(old, new)
     assert len(patches) == 1
-    assert patches[0].type == "update_attrs"
-    assert patches[0].value == {"class_name": "bar"}
+    assert patches[0].type == "update_classes"
+    assert set(patches[0].value["add"]) == {"bar"}
+    assert set(patches[0].value["remove"]) == {"foo"}
 
 def test_add_child():
     old = Div("A")

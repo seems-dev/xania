@@ -23,6 +23,8 @@ class Element:
     def render_attrs(self) -> str:
         attrs_str = ""
         for key, value in self.attrs.items():
+            if key == "inner_html":
+                continue
             if key == "class_name":
                 key = "class"
             elif key == "for_":
@@ -127,6 +129,8 @@ def component(func: Any = None):
                     k = "for"
                 elif k == "http_equiv":
                     k = "http-equiv"
+                elif k == "inner_html":
+                    k = "innerHTML"
                     
                 if k.startswith("_at_"):
                     raw_attrs["@" + k[4:]] = v
@@ -140,12 +144,15 @@ def component(func: Any = None):
         return result
 
     def render(self) -> str:
-        children_html = ""
-        for child in self.children:
-            if isinstance(child, Element):
-                children_html += child.render()
-            elif child is not None:
-                children_html += str(child)
+        if "inner_html" in self.attrs:
+            children_html = str(self.attrs["inner_html"])
+        else:
+            children_html = ""
+            for child in self.children:
+                if isinstance(child, Element):
+                    children_html += child.render()
+                elif child is not None:
+                    children_html += str(child)
         return f"<{self.tag}{self.render_attrs()}>{children_html}</{self.tag}>"
 
     def __repr__(self) -> str:

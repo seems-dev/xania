@@ -18,6 +18,8 @@ def _normalize_attr_name(name: str) -> str:
         return "for"
     if name == "http_equiv":
         return "http-equiv"
+    if name == "inner_html":
+        return "innerHTML"
     if name.startswith("_at_"):
         return "@" + name[4:]
     return name.replace("_", "-")

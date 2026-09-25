@@ -48,14 +48,42 @@ def index(request: Request, response: Response) -> str:
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Xania Stress Demo</title>
+    <title>Welcome to Xania</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
+      body { font-family: 'Inter', sans-serif; }
+    </style>
   </head>
-  <body>
-    <div id="app"></div>
-    <script src="/static/spa_runtime.js"></script>
-    <script src="/static/app.js"></script>
+  <body class="bg-black text-white min-h-screen flex flex-col items-center justify-center selection:bg-purple-500/30 overflow-hidden relative">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-black to-black -z-10"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none -z-10"></div>
+    
+    <main class="max-w-3xl w-full px-6 flex flex-col items-center text-center z-10">
+      <div class="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8 shadow-2xl">
+        <span class="flex h-2 w-2 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+        </span>
+        <span class="text-sm font-medium text-slate-300">Xania is running</span>
+      </div>
+
+      <h1 class="text-5xl md:text-7xl font-black tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40 drop-shadow-sm">
+        Build at the speed of thought.
+      </h1>
+      
+      <p class="text-lg md:text-xl text-slate-400 mb-12 max-w-2xl leading-relaxed">
+        You are looking at the default Xania welcome page. Get started by creating your first component.
+      </p>
+
+      <div class="relative group cursor-text">
+        <div class="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+        <div class="relative bg-black/50 border border-white/10 backdrop-blur-xl rounded-xl p-6 shadow-2xl flex items-center gap-4">
+          <span class="text-slate-500 font-mono text-sm uppercase tracking-widest font-bold select-none">File</span>
+          <code class="font-mono text-purple-300 text-lg">app/page.py</code>
+        </div>
+      </div>
+    </main>
   </body>
 </html>"""
 
@@ -99,150 +127,6 @@ def me(sess: Session = Depends(require_session), auth: AuthManager = Depends(get
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return {"ok": True, "user": user, "csrf": sess.csrf}
-
-
-def _seeded_users(count: int = 5000) -> list[dict[str, object]]:
-    rng = random.Random(1337)
-    first = [
-        "Aarav",
-        "Aditi",
-        "Alex",
-        "Amir",
-        "Ananya",
-        "Chen",
-        "Diego",
-        "Elena",
-        "Fatima",
-        "Hana",
-        "Isha",
-        "Jamal",
-        "Kaito",
-        "Liam",
-        "Mina",
-        "Noah",
-        "Omar",
-        "Priya",
-        "Sara",
-        "Wei",
-        "Yara",
-        "Zoe",
-    ]
-    last = [
-        "Singh",
-        "Patel",
-        "Sharma",
-        "Khan",
-        "Garcia",
-        "Smith",
-        "Kim",
-        "Chen",
-        "Brown",
-        "Johnson",
-        "Nakamura",
-        "Hassan",
-        "Ibrahim",
-        "Lopez",
-        "Martinez",
-    ]
-    roles = ["Admin", "Editor", "Analyst", "Support", "Member"]
-    statuses = ["active", "invited", "disabled"]
-
-    now = datetime.now(timezone.utc)
-    users: list[dict[str, object]] = []
-    for i in range(1, count + 1):
-        fn = rng.choice(first)
-        ln = rng.choice(last)
-        name = f"{fn} {ln}"
-        created = now - timedelta(days=rng.randint(0, 365 * 3), hours=rng.randint(0, 23))
-        users.append(
-            {
-                "id": i,
-                "name": name,
-                "email": f"{fn.lower()}.{ln.lower()}{i}@example.com",
-                "role": rng.choice(roles),
-                "status": rng.choices(statuses, weights=[80, 10, 10], k=1)[0],
-                "score": rng.randint(0, 1000),
-                "created_at": created.isoformat().replace("+00:00", "Z"),
-            }
-        )
-    return users
-
-
-_USERS = _seeded_users()
-
-
-def _clamp_int(value: int, *, lo: int, hi: int) -> int:
-    return max(lo, min(hi, value))
-
-
-@router.get("/api/metrics")
-def metrics() -> dict[str, object]:
-    active = sum(1 for u in _USERS if u["status"] == "active")
-    disabled = sum(1 for u in _USERS if u["status"] == "disabled")
-    invited = len(_USERS) - active - disabled
-    return {
-        "users_total": len(_USERS),
-        "users_active": active,
-        "users_invited": invited,
-        "users_disabled": disabled,
-        "requests_per_min_estimate": 1200,
-        "db_latency_ms_p50": 12,
-        "db_latency_ms_p95": 48,
-        "render_budget_ms": 16,
-    }
-
-
-@router.get("/api/users")
-def list_users(q: str | None = None, page: int = 1, page_size: int = 50) -> dict[str, object]:
-    page = _clamp_int(page, lo=1, hi=10_000_000)
-    page_size = _clamp_int(page_size, lo=10, hi=1000)
-
-    items = _USERS
-    if q:
-        qn = q.strip().lower()
-        if qn:
-            items = [u for u in _USERS if qn in str(u["name"]).lower() or qn in str(u["email"]).lower()]
-
-    total = len(items)
-    start = (page - 1) * page_size
-    end = start + page_size
-    page_items = items[start:end]
-    return {"items": page_items, "total": total, "page": page, "page_size": page_size}
-
-
-@router.get("/api/users/{user_id}")
-def get_user(user_id: int) -> dict[str, object]:
-    if user_id < 1 or user_id > len(_USERS):
-        raise HTTPException(status_code=404, detail="User not found")
-    return _USERS[user_id - 1]
-
-
-@router.get("/api/private/big-json")
-def private_big_json(sess: Session = Depends(require_role("admin"))) -> dict[str, object]:
-    # Protected read endpoint. Returns a large-ish payload to stress the client.
-    items = [{"i": i, "n": f"item-{i}", "u": (i * 2654435761) % 2**32} for i in range(50_000)]
-    return {"ok": True, "count": len(items), "items": items}
-
-
-@router.post("/api/private/write-echo")
-async def private_write_echo(payload: dict[str, object], sess: Session = Depends(require_csrf)) -> dict[str, object]:
-    # Protected write endpoint with CSRF requirement.
-    await asyncio.sleep(0)
-    return {"ok": True, "received": payload}
-
-
-@router.post("/api/echo")
-async def echo(payload: dict[str, object]) -> dict[str, object]:
-    # Tiny async boundary to mimic realistic request handling.
-    await asyncio.sleep(0)
-    return {"ok": True, "received": payload}
-
-
-@router.get("/api/delay")
-async def delay(ms: int = 250) -> dict[str, object]:
-    ms = _clamp_int(ms, lo=0, hi=5000)
-    await asyncio.sleep(ms / 1000)
-    return {"ok": True, "slept_ms": ms}
 
 
 def _process_image(src: str, w: int, fmt: str, cache_path: Path):

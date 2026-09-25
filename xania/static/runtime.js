@@ -107,6 +107,8 @@
                 if (target.value !== String(p.value[key])) {
                   target.value = p.value[key];
                 }
+              } else if (key === "innerHTML") {
+                target.innerHTML = p.value[key];
               } else {
                 target.setAttribute(key, p.value[key]);
               }
