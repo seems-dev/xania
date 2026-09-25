@@ -34,7 +34,7 @@ class Page(Component):
                     Button(
                         "Increment Server Counter",
                         class_name="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-full font-bold shadow-lg transition-transform hover:scale-105 active:scale-95",
-                        onclick="App.dispatch('Route__animations', 'increment')"
+                        onclick=self.on_increment
                     ),
                     P(f"Server says: {state.server_counter}", class_name="text-4xl font-black text-blue-400 mt-8"),
                     class_name="flex flex-col items-center"
@@ -53,14 +53,12 @@ class Page(Component):
                         "🎉 I faded in without Python!",
                         class_name="text-2xl font-bold bg-pink-600 text-white p-12 rounded-3xl shadow-2xl transition-all duration-1000 transform",
                         # Alpine dynamic classes binding
-                        **{
-                            "x-bind:class": "shown ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-24 scale-50'"
-                        }
+                        x_bind_class="shown ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-24 scale-50'"
                     ),
                     # Alpine x-data
                     x_data="{ shown: false }",
                     # Trigger when element intersects with viewport
-                    **{"x-intersect": "shown = true"},
+                    x_intersect="shown = true",
                     class_name="h-64 flex items-center justify-center"
                 ),
                 class_name="min-h-screen flex flex-col justify-center items-center bg-gray-900"

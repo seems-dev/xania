@@ -25,11 +25,11 @@ class Counter(Component):
             Span(str(count), class_name=f"text-6xl font-black {color} block mb-8"),
             Div(
                 Button("−", class_name="bg-red-600 text-white px-6 py-3 rounded-xl text-xl font-bold cursor-pointer border-0 hover:bg-red-500",
-                       onclick="App.dispatch('Counter','decrement')"),
+                       onclick=self.on_decrement),
                 Button("Reset", class_name="bg-gray-700 text-white px-6 py-3 rounded-xl text-xl font-bold cursor-pointer border-0",
-                       onclick="App.dispatch('Counter','reset')"),
+                       onclick=self.on_reset),
                 Button("+", class_name="bg-green-600 text-white px-6 py-3 rounded-xl text-xl font-bold cursor-pointer border-0 hover:bg-green-500",
-                       onclick="App.dispatch('Counter','increment')"),
+                       onclick=self.on_increment),
                 class_name="flex gap-4 justify-center"
             ),
             class_name="flex flex-col items-center justify-center min-h-screen bg-gray-950"

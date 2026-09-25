@@ -11,18 +11,7 @@ class Patch:
     value: Any = None
     index: int = -1
 
-def _normalize_attr_name(name: str) -> str:
-    if name == "class_name":
-        return "class"
-    if name == "for_":
-        return "for"
-    if name == "http_equiv":
-        return "http-equiv"
-    if name == "inner_html":
-        return "innerHTML"
-    if name.startswith("_at_"):
-        return "@" + name[4:]
-    return name.replace("_", "-")
+from xania.engine.serializer import _normalize_attr_name
 
 def serialize_patches(patches: list[Patch]) -> list[dict]:
     serialized = []

@@ -12,17 +12,33 @@ def _escape_attr(value: Any) -> str:
 
 
 def _normalize_attr_name(name: str) -> str:
-    if name == "class_name":
+    if name == "class_name" or name == "class_":
         return "class"
     if name == "for_":
         return "for"
     if name == "http_equiv":
         return "http-equiv"
+    if name == "inner_html":
+        return "innerHTML"
         
     if name.startswith("_at_"):
-        return "@" + name[4:]
+        return "@" + name[4:].replace("__", ".").replace("_", "-")
         
-    return name.replace("_", "-")
+    if name.startswith("x_bind_"):
+        return "x-bind:" + name[7:].replace("__", ".").replace("_", "-")
+        
+    if name.startswith("x_on_"):
+        return "x-on:" + name[5:].replace("__", ".").replace("_", "-")
+        
+    if name.startswith("x_transition_"):
+        suffix = name[13:]
+        for prefix in ("enter_start", "enter_end", "leave_start", "leave_end", "enter", "leave"):
+            if suffix.startswith(prefix):
+                rest = suffix[len(prefix):]
+                return f"x-transition:{prefix.replace('_', '-')}" + rest.replace("__", ".").replace("_", "-")
+        return "x-transition:" + suffix.replace("__", ".").replace("_", "-")
+
+    return name.replace("__", ".").replace("_", "-")
 
 
 def serialize(node: Element | str | None) -> str:
@@ -80,4 +96,4 @@ def _serialize_attrs(attrs: dict[str, Any]) -> str:
     return (" " + " ".join(parts)) if parts else ""
 
 
-__all__ = ["serialize"]
+__all__ = ["serialize", "_normalize_attr_name", "_serialize_attrs"]

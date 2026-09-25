@@ -70,13 +70,23 @@ class Component:
             else:
                 handler(self.state, payload)
 
-    def action(self, name: str, **payload: Any) -> str:
+    def action(self, name: str | Any, **payload: Any) -> str:
         """Generate an onclick JS string automatically.
 
         Usage:
             Button("Click me", onclick=self.action("increment"))
+            Button("Increment", onclick=self.action(self.on_increment))
+            Button("Delete", onclick=self.action(self.on_delete, item_id=42))
         """
         import json as _json
+        if callable(name):
+            method_name = getattr(name, "__name__", "")
+            if not method_name or method_name == "<lambda>":
+                raise TypeError("Anonymous lambdas cannot be used with self.action(). Pass a named method or action string.")
+            if method_name.startswith("on_"):
+                method_name = method_name[3:]
+            name = method_name
+
         if payload:
             return f"App.dispatch(this,'{name}',{_json.dumps(payload)})"
         return f"App.dispatch(this,'{name}')"

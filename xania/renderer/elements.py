@@ -18,31 +18,54 @@ class Element:
                 flat_children.append(child)
                 
         self.children: tuple[Any, ...] = tuple(flat_children)
-        self.attrs: dict[str, Any] = attrs
+        
+        normalized_attrs = {}
+        for k, v in attrs.items():
+            if callable(v):
+                # Detect event handlers: onclick, onchange, x_on_click, _at_click, etc.
+                if k.startswith("on") or k.startswith("x_on_") or k.startswith("_at_"):
+                    name = getattr(v, "__name__", "")
+                    if not name or name == "<lambda>":
+                        raise TypeError(
+                            f"Anonymous lambdas cannot be used as event handlers for '{k}'. "
+                            "Pass a named component method or use self.action('name', ...)."
+                        )
+                    if name.startswith("on_"):
+                        name = name[3:]
+                    v = f"App.dispatch(this, '{name}')"
+            normalized_attrs[k] = v
+            
+        self.attrs: dict[str, Any] = normalized_attrs
+
+    def render(self) -> str:
+        """Serialize this Element and its children into an HTML string."""
+        from xania.engine.serializer import serialize
+        return serialize(self)
 
     def render_attrs(self) -> str:
-        attrs_str = ""
-        for key, value in self.attrs.items():
-            if key == "inner_html":
-                continue
-            if key == "class_name":
-                key = "class"
-            elif key == "for_":
-                key = "for"
-            elif key == "http_equiv":
-                key = "http-equiv"
-            
-            if key.startswith("_at_"):
-                key = "@" + key[4:]
-            else:
-                key = key.replace("_", "-")
-                
-            if isinstance(value, bool):
-                if value:
-                    attrs_str += f" {key}"
-            else:
-                attrs_str += f' {key}="{value}"'
-        return attrs_str
+        """Serialize this Element's attributes into an HTML string."""
+        from xania.engine.serializer import _serialize_attrs
+        return _serialize_attrs(self.attrs)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert Element tree to dictionary representation."""
+        from xania.engine.serializer import _normalize_attr_name
+        result: dict[str, Any] = {"tag": self.tag}
+        if self.attrs:
+            result["attrs"] = {
+                _normalize_attr_name(k): v
+                for k, v in self.attrs.items()
+                if v is not None and v is not False
+            }
+        children = []
+        for child in self.children:
+            if hasattr(child, "to_dict"):
+                children.append(child.to_dict())
+            elif child is not None:
+                children.append(str(child))
+        if children:
+            result["children"] = children
+        return result
 
     def __repr__(self) -> str:
         return f"Element(tag={self.tag!r}, children={self.children!r}, attrs={self.attrs!r})"
@@ -60,9 +83,9 @@ class LazyElement(Element):
 
     def to_dict(self) -> dict[str, Any]:
         result = self.evaluate()
-        if isinstance(result, Element):
+        if hasattr(result, "to_dict"):
             return result.to_dict()
-        return {"tag": "", "children": [str(result)]}
+        return {"tag": "", "children": [str(result)] if result is not None else []}
 
 class ProviderElement(Element):
     """Evaluates children inside a Context.Provider."""
@@ -73,27 +96,15 @@ class ProviderElement(Element):
         self.children = tuple(children) if isinstance(children, (list, tuple)) else (children,)
 
     def to_dict(self) -> dict[str, Any]:
-        stack = self.context._var.get()
-        if stack is None:
-            stack = []
-        new_stack = stack + [self.value]
-        token = self.context._var.set(new_stack)
+        stack = self.context._var.get() or []
+        token = self.context._var.set(stack + [self.value])
         try:
             children = []
             for child in self.children:
-                if isinstance(child, Element):
+                if hasattr(child, "to_dict"):
                     children.append(child.to_dict())
                 elif child is not None:
                     children.append(str(child))
-            
-            # Since ProviderElement shouldn't appear in the DOM as a tag,
-            # we can return a transparent wrapper dict that differ.py can flatten,
-            # or we can just flatten it here! But wait, `to_dict` returns a single dict.
-            # If we flatten it here, a Provider returning multiple children would break the `dict` signature.
-            # Let's return a special `<provider>` dict that differ.py can handle, or just a `div` for simplicity.
-            # No, if we return `{"tag": "fragment", "children": children}`, differ.py might need to handle it.
-            # For now, let's just make ProviderElement a logical `<div class="provider-wrapper" style="display:contents;">`
-            # to keep VDOM diffing easy without refactoring differ.py to handle fragments!
             return {"tag": "div", "attrs": {"style": "display: contents;"}, "children": children}
         finally:
             self.context._var.reset(token)
@@ -109,78 +120,14 @@ def component(func: Any = None):
         return LazyElement(func, *args, **kwargs)
     return wrapper
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert Element tree → dict so Render can consume it."""
-        children = []
-        for child in self.children:
-            if isinstance(child, Element):
-                children.append(child.to_dict())
-            elif child is not None:
-                children.append(str(child))
-
-        result: dict[str, Any] = {"tag": self.tag}
-
-        if self.attrs:
-            raw_attrs: dict[str, Any] = {}
-            for k, v in self.attrs.items():
-                if k == "class_name":
-                    k = "class"
-                elif k == "for_":
-                    k = "for"
-                elif k == "http_equiv":
-                    k = "http-equiv"
-                elif k == "inner_html":
-                    k = "innerHTML"
-                    
-                if k.startswith("_at_"):
-                    raw_attrs["@" + k[4:]] = v
-                else:
-                    raw_attrs[k.replace("_", "-")] = v
-            result["attrs"] = raw_attrs
-
-        if children:
-            result["children"] = children
-
-        return result
-
-    def render(self) -> str:
-        if "inner_html" in self.attrs:
-            children_html = str(self.attrs["inner_html"])
-        else:
-            children_html = ""
-            for child in self.children:
-                if isinstance(child, Element):
-                    children_html += child.render()
-                elif child is not None:
-                    children_html += str(child)
-        return f"<{self.tag}{self.render_attrs()}>{children_html}</{self.tag}>"
-
-    def __repr__(self) -> str:
-        return f"Element(tag={self.tag!r}, children={self.children!r}, attrs={self.attrs!r})"
-
 
 class VoidElement(Element):
     """Self-closing tags: <img />, <input />, <br /> etc."""
 
     def to_dict(self) -> dict[str, Any]:
-        result: dict[str, Any] = {"tag": self.tag, "void": True}
-        if self.attrs:
-            raw_attrs: dict[str, Any] = {}
-            for k, v in self.attrs.items():
-                if k == "class_name":
-                    k = "class"
-                elif k == "for_":
-                    k = "for"
-                    
-                if k.startswith("_at_"):
-                    raw_attrs["@" + k[4:]] = v
-                else:
-                    raw_attrs[k.replace("_", "-")] = v
-            result["attrs"] = raw_attrs
-        return result
-
-    def render(self) -> str:
-        return f"<{self.tag}{self.render_attrs()} />"
+        d = super().to_dict()
+        d["void"] = True
+        return d
 
 
 # ─────────────────────────────────────────────
