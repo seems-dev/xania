@@ -41,3 +41,8 @@ include = ["xania*"]
 [tool.setuptools.package-data]
 xania = ["static/*.js", "renderer/*.html", "template/**/*", "template/*", "template/**/.*"]
 
+[project.urls]
+Homepage = "https://github.com/seems-dev/xania"
+Repository = "https://github.com/seems-dev/xania"
+Issues = "https://github.com/seems-dev/xania/issues"
+
