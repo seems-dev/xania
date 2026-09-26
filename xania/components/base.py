@@ -10,6 +10,7 @@ class VarData:
     """Metadata associated with a reactive Var expression."""
     state_name: str = ""
     field_name: str = ""
+    default_value: Any = None
     imports: Dict[str, List[str]] = field(default_factory=dict)
     hooks: List[str] = field(default_factory=list)
 
@@ -63,6 +64,8 @@ class Var:
         return self._js_expr
 
     def __str__(self) -> str:
+        if self._var_data and self._var_data.default_value is not None:
+            return str(self._var_data.default_value)
         return self.to_js()
 
     def __repr__(self) -> str:

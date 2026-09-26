@@ -59,6 +59,16 @@ def html_shell(components: Iterable[tuple[str, Component]], config: RuntimeConfi
     <!-- Alpine.js for client-side interactivity -->
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/intersect@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons auto-initialization -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {{
+        if (window.lucide) {{
+          window.lucide.createIcons();
+        }}
+      }});
+      setTimeout(() => {{ if (window.lucide) window.lucide.createIcons(); }}, 150);
+    </script>
     <script src="/static/runtime.js?v=6"></script>
   </body>
 </html>"""

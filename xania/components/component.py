@@ -69,6 +69,26 @@ class Component:
             else:
                 self.props[react_prop] = Var.create(v)
 
+    @property
+    def attrs(self) -> Dict[str, Any]:
+        result = {}
+        for k, v in self.props.items():
+            if k == "className":
+                raw = v._var_data.default_value if isinstance(v, Var) and v._var_data and v._var_data.default_value is not None else (v.to_js().strip('"') if isinstance(v, Var) else str(v))
+                result["class_name"] = raw
+            elif isinstance(v, EventHandler):
+                continue
+            elif isinstance(v, Var):
+                val = v._var_data.default_value if v._var_data and v._var_data.default_value is not None else v.to_js().strip('"')
+                result[k] = val
+            else:
+                result[k] = v
+        return result
+
+    def to_html(self) -> str:
+        from xania.engine.serializer import serialize
+        return serialize(self)
+
     @classmethod
     def create(cls, *children: Any, **props: Any) -> Component:
         """Factory method to instantiate a component."""

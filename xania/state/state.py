@@ -38,7 +38,9 @@ class StateMeta(type):
         
         fields = super().__getattribute__("_fields") if "_fields" in cls.__dict__ else set()
         if name in fields:
-            var_data = VarData(state_name=cls.__name__, field_name=name)
+            defaults = super().__getattribute__("_defaults") if "_defaults" in cls.__dict__ else {}
+            default_val = defaults.get(name)
+            var_data = VarData(state_name=cls.__name__, field_name=name, default_value=default_val)
             return Var(f"state.{name}", _var_data=var_data)
 
         val = super().__getattribute__(name)

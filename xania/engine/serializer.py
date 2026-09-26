@@ -41,7 +41,7 @@ def _normalize_attr_name(name: str) -> str:
     return name.replace("__", ".").replace("_", "-")
 
 
-def serialize(node: Element | str | None) -> str:
+def serialize(node: Any) -> str:
     """
     Convert VDOM nodes into HTML.
 
@@ -54,6 +54,30 @@ def serialize(node: Element | str | None) -> str:
 
     if isinstance(node, str):
         return escape(node)
+
+    if isinstance(node, (int, float, bool)):
+        return escape(str(node))
+
+    from xania.components.base import Var
+    if isinstance(node, Var):
+        val = node._var_data.default_value if node._var_data and node._var_data.default_value is not None else node.to_js().strip('"')
+        return escape(str(val))
+
+    from xania.components.component import Component
+    if isinstance(node, Component):
+        tag = node.tag
+        attrs = dict(node.attrs)
+        if tag == "Link" or node.__class__.__name__ == "Link":
+            tag = "a"
+            if "to" in attrs:
+                attrs["href"] = attrs.pop("to")
+        elif getattr(node, "library", "") == "lucide-react" or node.__class__.__name__ == "LucideIcon":
+            tag = "span"
+            icon_name = getattr(node, "icon_name", node.tag)
+            attrs["data-lucide"] = icon_name
+
+        children_html = "".join(serialize(c) for c in node.children if c is not None)
+        return f"<{tag}{_serialize_attrs(attrs)}>{children_html}</{tag}>"
 
     from xania.renderer.elements import LazyElement, ProviderElement
     
@@ -69,17 +93,17 @@ def serialize(node: Element | str | None) -> str:
         new_stack = stack + [node.value]
         token = node.context._var.set(new_stack)
         try:
-            children_html = "".join(serialize(c if isinstance(c, (Element, str)) else str(c)) for c in node.children if c is not None)
+            children_html = "".join(serialize(c) for c in node.children if c is not None)
             return f'<div style="display: contents;">{children_html}</div>'
         finally:
             node.context._var.reset(token)
 
     if isinstance(node, VoidElement):
-        attrs = _serialize_attrs(node.attrs)
+        attrs = _serialize_attrs(getattr(node, "attrs", {}))
         return f"<{node.tag}{attrs} />"
 
-    attrs = _serialize_attrs(node.attrs)
-    children_html = "".join(serialize(c if isinstance(c, (Element, str)) else str(c)) for c in node.children if c is not None)
+    attrs = _serialize_attrs(getattr(node, "attrs", {}))
+    children_html = "".join(serialize(c) for c in getattr(node, "children", ()) if c is not None)
     return f"<{node.tag}{attrs}>{children_html}</{node.tag}>"
 
 
