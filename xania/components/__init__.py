@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-# Reactive SPA Architecture (Xania 4.0)
 from xania.components.base import Var, VarData, EventHandler
 from xania.components.component import (
     Component,
@@ -44,6 +41,9 @@ from xania.components.component import (
     Audio,
     Canvas,
     Iframe,
+    Svg,
+    Path,
+    Element,
 )
 from xania.components.control_flow import (
     Cond,
@@ -53,38 +53,8 @@ from xania.components.control_flow import (
     Match,
     match,
 )
-from xania.state.state import BaseState, StateMeta, StateRegistry, default_registry
-from xania.compiler.compiler import SpaCompiler, PageDef
-from xania.compiler.templates import RenderUtils
-
-# Standard Modern UI Primitives
-from xania.ui.components import (
-    Alert,
-    Badge,
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-    LucideIcon,
-    StatCard,
-)
-
-# Optional Server & Legacy Web Mount
-try:
-    from xania.server.app import XaniaServer, create_app
-except ImportError:
-    XaniaServer = None
-    create_app = None
-
-try:
-    from xania.web.serve import mount_spa
-except ImportError:
-    mount_spa = None
 
 __all__ = [
-    # Metamodel & Reactivity
     "Var",
     "VarData",
     "EventHandler",
@@ -92,7 +62,6 @@ __all__ = [
     "Fragment",
     "to_react_prop",
     "make_element",
-    # Elements
     "Div",
     "Span",
     "H1",
@@ -130,35 +99,10 @@ __all__ = [
     "Audio",
     "Canvas",
     "Iframe",
-    # Control Flow
     "Cond",
     "cond",
     "Foreach",
     "foreach",
     "Match",
     "match",
-    # State Engine
-    "BaseState",
-    "StateMeta",
-    "StateRegistry",
-    "default_registry",
-    # Compiler
-    "SpaCompiler",
-    "PageDef",
-    "RenderUtils",
-    # Standard UI
-    "LucideIcon",
-    "Card",
-    "CardHeader",
-    "CardTitle",
-    "CardDescription",
-    "CardContent",
-    "CardFooter",
-    "Badge",
-    "StatCard",
-    "Alert",
-    # Server & Serving
-    "XaniaServer",
-    "create_app",
-    "mount_spa",
 ]

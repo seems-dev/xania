@@ -196,6 +196,22 @@
       } else {
         if (payload.value === undefined) payload.value = sourceElement.value;
       }
+
+      // Client-Side Input Debouncing: prevent flooding server on every keystroke
+      const debounceAttr = sourceElement.getAttribute("data-debounce") ||
+                           sourceElement.getAttribute("x-debounce") ||
+                           sourceElement.getAttribute("debounce") ||
+                           (sourceElement.tagName === "INPUT" && (action === "input" || action === "search") ? "300" : null);
+
+      if (debounceAttr && !payload.__immediate) {
+        const ms = parseInt(debounceAttr, 10) || 300;
+        clearTimeout(sourceElement._xaniaDebounceTimer);
+        sourceElement._xaniaDebounceTimer = setTimeout(() => {
+          const debouncedPayload = Object.assign({}, payload, { __immediate: true });
+          App.dispatch(sourceElement, action, debouncedPayload);
+        }, ms);
+        return;
+      }
     }
 
     const handler = localHandlers[component];

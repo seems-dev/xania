@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xania"
-version = "3.0.5"
-description = "A minimal React-like Python UI framework on FastAPI (CSR runtime + component model)."
+version = "4.0.0"
+description = "A production-grade Python-to-React Full-Stack SPA Framework on Vite and FastAPI."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
-keywords = ["xania", "ui", "spa", "fastapi", "vdom", "framework"]
+keywords = ["xania", "ui", "spa", "react", "vite", "fastapi", "framework"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Framework :: FastAPI",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -19,17 +19,17 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "click>=8.3.3",
-    "fastapi>=0.136.1",
-    "pydantic>=2.13.3",
-    "uvicorn>=0.46.0",
+    "click>=8.1.0",
+    "fastapi>=0.110.0",
+    "pydantic>=2.0.0",
+    "uvicorn>=0.28.0",
     "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "build>=1.5.0",
-    "twine>=6.2.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
 ]
 
 [project.scripts]
@@ -39,4 +39,5 @@ xania = "xania.cli:cli"
 include = ["xania*"]
 
 [tool.setuptools.package-data]
-xania = ["static/*.js", "renderer/*.html"]
+xania = ["static/*.js", "renderer/*.html", "template/**/*", "template/*", "template/**/.*"]
+
