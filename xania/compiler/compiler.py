@@ -59,9 +59,25 @@ class SpaCompiler:
         for lib, tags in sorted(imports_map.items()):
             if lib == "react":
                 continue
-            named_tags = sorted(list(tags))
-            if named_tags:
-                import_lines.append(f'import {{ {", ".join(named_tags)} }} from "{lib}";')
+            default_import = None
+            named_imports = []
+            for item in sorted(tags, key=lambda x: x[0] if isinstance(x, tuple) else x):
+                if isinstance(item, tuple):
+                    tag_name, is_def, alias_name = item
+                    if is_def:
+                        default_import = alias_name or tag_name
+                    else:
+                        named_imports.append(f"{tag_name} as {alias_name}" if alias_name else tag_name)
+                else:
+                    named_imports.append(item)
+
+            chunks = []
+            if default_import:
+                chunks.append(default_import)
+            if named_imports:
+                chunks.append(f"{{ {', '.join(sorted(list(set(named_imports))))} }}")
+            if chunks:
+                import_lines.append(f'import {", ".join(chunks)} from "{lib}";')
 
         jsx_body = RenderUtils.render(comp, depth=2)
 

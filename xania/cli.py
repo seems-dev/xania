@@ -39,6 +39,25 @@ def _scaffold_web_dir(target_dir: Path) -> None:
                 shutil.copy2(item, dest_file)
 
 
+def _ensure_node_dependencies(web_dir: Path) -> None:
+    """Ensure all dependencies in package.json are installed in node_modules."""
+    pkg_json_file = web_dir / "package.json"
+    hash_file = web_dir / ".pkg_hash"
+    node_modules = web_dir / "node_modules"
+
+    if not pkg_json_file.exists():
+        return
+
+    import hashlib
+    current_hash = hashlib.sha256(pkg_json_file.read_bytes()).hexdigest()
+    saved_hash = hash_file.read_text().strip() if hash_file.exists() else ""
+
+    if not node_modules.exists() or current_hash != saved_hash:
+        click.echo("📦 Installing/updating frontend dependencies from package.json...")
+        subprocess.run(["npm", "install", "--prefer-offline", "--no-audit", "--no-fund"], cwd=str(web_dir), check=False)
+        hash_file.write_text(current_hash)
+
+
 def _discover_pages_and_states(app_dir: Path) -> tuple[List[PageDef], Optional[type[BaseState]]]:
     """Scan app directory for page.py files and BaseState definitions."""
     pages: List[PageDef] = []
@@ -242,11 +261,8 @@ def dev(host: str, port: int, frontend_port: int) -> None:
     # 1. Compile initial pages
     web_dir = _compile_project(cwd)
 
-    # 2. Check if npm install needed in .xania/web
-    node_modules = web_dir / "node_modules"
-    if not node_modules.exists():
-        click.echo("📦 Installing frontend dependencies (Vite, React, Tailwind, Lucide)...")
-        subprocess.run(["npm", "install", "--prefer-offline", "--no-audit", "--no-fund"], cwd=str(web_dir), check=False)
+    # 2. Ensure frontend dependencies are installed
+    _ensure_node_dependencies(web_dir)
 
     # 3. Launch FastAPI backend
     if (cwd / "server.py").exists():
@@ -304,10 +320,7 @@ def build() -> None:
     click.echo("🏗️ Compiling Xania SPA for production...")
     web_dir = _compile_project(cwd)
 
-    node_modules = web_dir / "node_modules"
-    if not node_modules.exists():
-        click.echo("📦 Installing frontend dependencies...")
-        subprocess.run(["npm", "install", "--prefer-offline", "--no-audit", "--no-fund"], cwd=str(web_dir), check=True)
+    _ensure_node_dependencies(web_dir)
 
     click.echo("⚡ Running Vite build...")
     res = subprocess.run(["npm", "run", "build"], cwd=str(web_dir))

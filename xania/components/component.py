@@ -74,11 +74,11 @@ class Component:
         """Factory method to instantiate a component."""
         return cls(*children, **props)
 
-    def _get_all_imports(self) -> Dict[str, Set[str]]:
+    def _get_all_imports(self) -> Dict[str, Set[Any]]:
         """Traverse the entire component subtree and collect required npm imports."""
-        imports: Dict[str, Set[str]] = {}
+        imports: Dict[str, Set[Any]] = {}
         if self.library:
-            imports.setdefault(self.library, set()).add(self.tag)
+            imports.setdefault(self.library, set()).add((self.tag, self.is_default, self.alias))
 
         for child in self.children:
             if isinstance(child, Component):
@@ -90,7 +90,9 @@ class Component:
         for prop_val in self.props.values():
             if isinstance(prop_val, Var) and prop_val._var_data.imports:
                 for lib, tags in prop_val._var_data.imports.items():
-                    imports.setdefault(lib, set()).update(tags)
+                    for t in tags:
+                        item = t if isinstance(t, tuple) else (t, False, "")
+                        imports.setdefault(lib, set()).add(item)
 
         return imports
 
