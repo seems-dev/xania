@@ -1,112 +1,214 @@
 <div align="center">
-  <h1 align="center">Xania</h1>
-  <p align="center"><strong>The revolutionary Python UI framework for building blazing-fast Single Page Applications (SPAs).</strong></p>
-  <p align="center">No JavaScript. No React. Just pure Python.</p>
+  <h1>⚡ Xania 4.0</h1>
+  <p><strong>The Full-Stack Python SPA Framework Compiled to Vite & React.</strong></p>
+  <p>Pure Python syntax. Zero JavaScript tooling. Instant 0ms client reactivity. Direct access to the entire npm ecosystem.</p>
+
+  <p>
+    <a href="https://pypi.org/project/xania/"><img src="https://img.shields.io/pypi/v/xania?color=ec4899&label=PyPI" alt="PyPI version"></a>
+    <a href="https://python.org"><img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python Version"></a>
+    <a href="https://vitejs.dev"><img src="https://img.shields.io/badge/bundler-Vite%205-646cff" alt="Vite"></a>
+    <a href="https://react.dev"><img src="https://img.shields.io/badge/frontend-React%2018-61dafb" alt="React"></a>
+    <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/backend-FastAPI-009688" alt="FastAPI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  </p>
 </div>
 
 ---
 
-Xania allows you to build modern, interactive, and highly performant web applications using a native Python component model. It combines **Server-Side Rendering (SSR)** for flawless SEO with **Persistent WebSockets** for real-time reactivity, all while automatically functioning as a seamless Single Page Application (SPA).
+**Xania 4.0** is an enterprise-grade full-stack web framework that compiles declarative Python component trees into modern, high-performance **React Single Page Applications (SPAs)** served with **Vite** and powered by a **FastAPI WebSocket state engine**.
 
-## 🚀 Key Capabilities
+Write clean, pythonic code while unlocking the speed, responsiveness, and ecosystem of the modern frontend web.
 
-- **100% Python Frontend:** Write your components, routing, and state entirely in Python.
-- **File-System App Router:** Next.js style routing natively built-in (`app/layout.py`, `app/state/page.py`).
-- **Surgical DOM Diffing:** State updates execute in Python, calculate a Virtual DOM diff, and stream microscopic patches back to the browser in milliseconds over WebSockets.
-- **Zero Page Reloads (SPA):** Xania automatically intercepts link clicks and performs background HTML swaps, creating a fluid SPA experience without massive JavaScript bundles.
-- **Tailwind & Alpine.js Built-in:** Style your components beautifully with standard TailwindCSS classes out of the box.
+---
+
+## 🚀 Key Architectural Pillars
+
+- **⚡ Compiled Vite + React SPA:** Your Python component definitions evaluate once into clean React JSX modules. Enjoy sub-50ms **Hot Module Replacement (HMR)** and production bundles optimized with tree-shaking.
+- **🎯 0ms Instant Client Reactivity:** Eliminate the 150ms–300ms server network roundtrips of legacy server-side VDOM diffing. UI updates and client transitions happen instantaneously.
+- **📦 Universal npm & React Wrapping:** Wrap and use **any npm package** (Lucide icons, Radix UI, Tailwind CSS, Framer Motion, QR Code generators) in 4 lines of Python without writing any JavaScript tooling or configuration files.
+- **🔄 Sparse Delta State Synchronization:** `BaseState` automatically tracks modified properties via `__setattr__`. Over persistent WebSockets, the FastAPI backend sends only dirty keys (`{"count": 1}`), saving 95% of bandwidth.
+- **📂 File-Based App Routing:** Standard Next.js/Remix style file routing natively supported (`app/page.py`, `app/features/page.py`, `app/docs/page.py`) with client-side SPA navigation via `<Link>`.
 
 ---
 
 ## 📦 Installation
 
-Xania is published on PyPI. Install it using `pip` or `uv`:
+Install Xania using `pip` or `uv`:
 
 ```bash
 pip install xania
 ```
 
-> **Note:** Xania requires Python 3.12 or newer.
+> **Requirement:** Python 3.12+ and Node.js 18+ (for Vite bundling).
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quickstart
 
-Xania provides a CLI to instantly scaffold a new project!
+Get a production-ready reactive SPA running in 30 seconds:
 
 ```bash
-# 1. Initialize a new Xania app
+# 1. Initialize a new project
 xania init my_app
 cd my_app
 
-# 2. Run the development server
-python app.py
+# 2. Start the dev server (FastAPI on :8000 + Vite with HMR on :3000)
+xania dev
 ```
 
-Open your browser to `http://127.0.0.1:8000` and watch your app come alive!
+Open `http://localhost:3000` in your browser. Edit your Python files in `app/` and see changes reflect instantly via Vite HMR!
 
 ---
 
-## 🏗️ How it Works: The App Router
+## 🛠️ The Component & Reactive State Model
 
-Xania uses directory-based routing. The structure of your `app/` folder dictates the URLs of your website.
-
-```
-app/
-├── layout.py         # The root layout wrapper (Navbar, Sidebar, etc)
-├── page.py           # Maps to `http://localhost:8000/`
-└── dashboard/
-    └── page.py       # Maps to `http://localhost:8000/dashboard`
-```
-
-### Writing a Component (`app/page.py`)
-
-Components are written as simple Python classes that inherit from `Component`.
+Write components and server-synchronized state using 100% Python syntax:
 
 ```python
-from xania.renderer.component import Component
-from xania.renderer.elements import Div, H1, P, Button
-from xania.renderer.state import State
-from typing import Any
+# app/page.py
+from xania import BaseState, Div, H1, P, Button, Card, Badge, LucideIcon
 
-class Page(Component):
-    # 1. Define Initial State
-    def initial_state(self) -> dict[str, Any]:
-        return {"counter": 0}
+class CounterState(BaseState):
+    count: int = 0
 
-    # 2. Handle State Updates (Runs securely on the Python server)
-    def on_increment(self, state: State, payload: dict[str, Any]) -> None:
-        state.counter += 1
+    def increment(self):
+        self.count += 1
 
-    # 3. Render the UI
-    def render(self, state: State):
-        return Div(
-            H1("Welcome to Xania!", class_name="text-4xl font-bold text-blue-500"),
-            P(f"Current count: {state.counter}", class_name="text-xl mt-4"),
-            Button(
-                "Click Me!", 
-                onclick=self.action("increment"), # Binds to on_increment()
-                class_name="bg-blue-600 text-white px-4 py-2 rounded-lg mt-4 cursor-pointer hover:bg-blue-500"
+    def decrement(self):
+        self.count -= 1
+
+def Page():
+    return Div(
+        Card(
+            Div(
+                LucideIcon("Sparkles", class_name="w-8 h-8 text-pink-500 mb-2"),
+                H1("Xania 4.0 True SPA", class_name="text-3xl font-extrabold text-white"),
+                P("Full-stack Python web framework with instant 0ms reactivity.", class_name="text-zinc-400 mt-2"),
+                class_name="flex flex-col items-center"
             ),
-            class_name="p-12 min-h-screen bg-gray-950"
-        )
+            Div(
+                H1(CounterState.count, class_name="text-6xl font-black text-pink-500 my-6"),
+                Div(
+                    Button("- Decrement", on_click=CounterState.decrement, variant="secondary", class_name="mr-3"),
+                    Button("+ Increment", on_click=CounterState.increment, variant="primary"),
+                    class_name="flex justify-center"
+                ),
+                class_name="text-center"
+            ),
+            class_name="max-w-md w-full p-8 bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl"
+        ),
+        class_name="min-h-screen bg-zinc-950 flex items-center justify-center p-4"
+    )
 ```
 
-## 🔄 Real-time Reactive State
+---
 
-When you click the button in the example above:
-1. The browser sends a tiny WebSocket message: `{"action": "increment"}`.
-2. Xania executes `on_increment` in Python.
-3. Xania compares the old UI state with the new UI state using a lightning-fast Virtual DOM Differ.
-4. It streams a tiny patch (e.g., `Update text node #2 to "1"`) back to the browser.
-5. The DOM updates instantly without a page reload, preserving input focus and scroll positions.
+## 📦 Wrapping Any npm Package in 4 Lines
 
-## 🔗 SPA Navigation
+Want to use third-party React npm packages? Subclass `Component` and declare its library name and tag:
 
-Navigating between pages in Xania is completely seamless. You can use standard anchor tags:
 ```python
-from xania.renderer.elements import A
+from xania import Component, BaseState, Card, Div
 
-A("Go to Dashboard", href="/dashboard", class_name="text-blue-400")
+# 1. Define the npm wrapper in 4 lines of Python:
+class QRCode(Component):
+    library = "react-qr-code"   # npm package name
+    tag = "QRCode"              # Exported component name
+    is_default = True           # True for default export
+
+# 2. Use it seamlessly in your Python UI tree:
+def Page():
+    return Card(
+        QRCode(value="https://xania.dev", size=140, class_name="p-2 bg-white rounded-xl"),
+        class_name="p-6 bg-zinc-900 border border-zinc-800 rounded-2xl"
+    )
 ```
-Xania's frontend runtime automatically intercepts the click, fetches the new `/dashboard` component via HTTP, and surgically swaps the DOM. This provides the speed of a Single Page Application without the complexity of frontend JavaScript routers!
+
+> **Automatic Dependency Management:** When `xania dev` or `xania export` runs, Xania automatically detects new npm wrappers, adds them to `.xania/web/package.json`, and installs them via `npm install` automatically!
+
+---
+
+## 🚦 Reactive Control Flow Primitives
+
+Dynamic UI elements are expressed cleanly with reactive Python helpers:
+
+```python
+from xania import cond, foreach, Badge, Div
+
+# Conditional rendering (compiles to JS ternary)
+cond(
+    UserState.is_logged_in,
+    Badge("Online", variant="success"),
+    Badge("Offline", variant="neutral")
+)
+
+# Array iteration (compiles to JS Array.map)
+foreach(
+    UserState.tags,
+    lambda item, index: Badge(item, variant="purple")
+)
+```
+
+---
+
+## 🌐 File-Based Routing & SPA Navigation
+
+Xania uses the standard `app/` folder directory hierarchy:
+
+```
+my_app/
+├── app/
+│   ├── page.py              # Route: /
+│   ├── features/
+│   │   └── page.py          # Route: /features
+│   ├── docs/
+│   │   └── page.py          # Route: /docs
+│   └── shared.py            # Shared navigation (Navbar, Footer)
+└── server.py                # FastAPI WebSocket backend
+```
+
+Navigate between routes with **0ms instant SPA transitions** using `Link`:
+
+```python
+from xania import Link
+
+Link("Features", to="/features", class_name="text-sm text-zinc-300 hover:text-white")
+```
+
+---
+
+## 🚀 Building & Exporting for Production
+
+To bundle your application for production deployment:
+
+```bash
+xania export
+# or: xania build
+```
+
+This compiles your Python code, bundles all React/Tailwind/npm assets with Vite, and outputs optimized static chunks into `.xania/web/dist/`.
+
+Run your production FastAPI server directly:
+
+```bash
+python -m uvicorn server:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+The FastAPI backend automatically mounts the compiled static SPA and powers the real-time WebSocket state connections.
+
+---
+
+## 💻 CLI Command Reference
+
+| Command | Description |
+| :--- | :--- |
+| `xania init <app_name>` | Scaffolds a new Xania 4.0 full-stack SPA project |
+| `xania dev` | Starts FastAPI backend (`:8000`) and Vite dev server (`:3000`) with instant HMR |
+| `xania compile` | Compiles Python pages into `.xania/web/src/pages/` JSX components |
+| `xania export` / `build` | Compiles and builds production static assets into `.xania/web/dist/` |
+
+---
+
+## 📄 License
+
+Xania is open-source software released under the [MIT License](LICENSE).
