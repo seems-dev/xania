@@ -40,7 +40,7 @@ class XaniaServer:
     def _setup_routes(self) -> None:
         @self.app.get("/api/health")
         async def health():
-            return {"status": "ok", "framework": "Xania", "version": "4.0.0"}
+            return {"status": "ok", "framework": "Xania", "version": "4.0.1"}
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(ws: WebSocket):
