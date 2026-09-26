@@ -313,9 +313,7 @@ def dev(host: str, port: int, frontend_port: int) -> None:
         vite_proc.terminate()
 
 
-@cli.command("build")
-def build() -> None:
-    """Build production SPA static assets into .xania/web/dist."""
+def _run_build() -> None:
     cwd = Path.cwd()
     click.echo("🏗️ Compiling Xania SPA for production...")
     web_dir = _compile_project(cwd)
@@ -331,10 +329,16 @@ def build() -> None:
         raise click.ClickException("Vite build failed.")
 
 
+@cli.command("build")
+def build() -> None:
+    """Build production SPA static assets into .xania/web/dist."""
+    _run_build()
+
+
 @cli.command("export")
-def export_cmd() -> None:
+def export() -> None:
     """Alias for build: export production SPA static assets into .xania/web/dist."""
-    build()
+    _run_build()
 
 
 def main(argv: list[str] | None = None) -> None:
