@@ -249,7 +249,12 @@ def dev(host: str, port: int, frontend_port: int) -> None:
         subprocess.run(["npm", "install", "--prefer-offline", "--no-audit", "--no-fund"], cwd=str(web_dir), check=False)
 
     # 3. Launch FastAPI backend
-    app_path = "app:app" if (cwd / "app.py").exists() else "xania.web.app:app"
+    if (cwd / "server.py").exists():
+        app_path = "server:app"
+    elif (cwd / "app.py").exists():
+        app_path = "app:app"
+    else:
+        app_path = "xania.web.app:app"
     backend_env = os.environ.copy()
     backend_env["PYTHONPATH"] = str(cwd) + os.pathsep + backend_env.get("PYTHONPATH", "")
 

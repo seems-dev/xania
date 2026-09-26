@@ -83,8 +83,15 @@ class RenderUtils:
                 elif isinstance(child, (int, float)):
                     rendered_children.append(f"{indent}  {{{child}}}")
                 elif child is not None:
-                    # Raw string or text
-                    txt = str(child).replace("{", "&#123;").replace("}", "&#125;")
+                    # Raw string or text with JSX entity escaping
+                    txt = (
+                        str(child)
+                        .replace("&", "&amp;")
+                        .replace("{", "&#123;")
+                        .replace("}", "&#125;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                    )
                     rendered_children.append(f"{indent}  {txt}")
 
             children_joined = "\n".join(rendered_children)

@@ -44,6 +44,7 @@ from xania.components.component import (
     Audio,
     Canvas,
     Iframe,
+    Link,
 )
 from xania.components.control_flow import (
     Cond,
@@ -69,6 +70,8 @@ from xania.ui.components import (
     CardTitle,
     LucideIcon,
     StatCard,
+    TableHeader,
+    TableRow,
 )
 
 # Optional Server & Legacy Web Mount
@@ -111,6 +114,7 @@ __all__ = [
     "Ol",
     "Li",
     "A",
+    "Link",
     "Img",
     "Nav",
     "Header",
@@ -157,6 +161,8 @@ __all__ = [
     "Badge",
     "StatCard",
     "Alert",
+    "TableHeader",
+    "TableRow",
     # Server & Serving
     "XaniaServer",
     "create_app",

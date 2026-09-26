@@ -44,6 +44,7 @@ from xania.components.component import (
     Svg,
     Path,
     Element,
+    Link,
 )
 from xania.components.control_flow import (
     Cond,

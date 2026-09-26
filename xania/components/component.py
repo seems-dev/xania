@@ -173,3 +173,14 @@ def Element(tag: str, *children: Any, **props: Any) -> Component:
     comp.tag = tag
     return comp
 
+
+class Link(Component):
+    """Client-side navigation link for React Router SPA."""
+    library = "react-router-dom"
+    tag = "Link"
+
+    def __init__(self, *children: Any, to: str = "/", href: Optional[str] = None, **props: Any):
+        target = href if href is not None else to
+        super().__init__(*children, to=target, **props)
+
+
