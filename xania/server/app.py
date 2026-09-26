@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional, Type
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from xania.state.state import BaseState, default_registry
@@ -32,6 +33,14 @@ class XaniaServer:
             allow_headers=["*"],
         )
 
+        @self.app.middleware("http")
+        async def allow_iframe_embedding(request, call_next):
+            response = await call_next(request)
+            if "x-frame-options" in response.headers:
+                del response.headers["x-frame-options"]
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            return response
+
         self._setup_routes()
 
     def register_state(self, state_cls: Type[BaseState]) -> None:
@@ -40,7 +49,7 @@ class XaniaServer:
     def _setup_routes(self) -> None:
         @self.app.get("/api/health")
         async def health():
-            return {"status": "ok", "framework": "Xania", "version": "4.0.1"}
+            return {"status": "ok", "framework": "Xania", "version": "4.0.2"}
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(ws: WebSocket):
@@ -77,10 +86,20 @@ class XaniaServer:
                     handler = getattr(state_instance, method_name, None)
                     if handler and callable(handler):
                         try:
-                            # Inspect handler parameters
                             sig = inspect.signature(handler)
-                            if len(sig.parameters) == 0:
+                            params = list(sig.parameters.keys())
+                            if len(params) == 0:
                                 res = handler()
+                            elif len(params) == 1:
+                                if isinstance(payload, dict):
+                                    if params[0] in payload:
+                                        res = handler(payload[params[0]])
+                                    elif "value" in payload:
+                                        res = handler(payload["value"])
+                                    else:
+                                        res = handler(payload)
+                                else:
+                                    res = handler(payload)
                             else:
                                 if isinstance(payload, dict):
                                     res = handler(**payload)
@@ -110,7 +129,23 @@ class XaniaServer:
 
         # Mount compiled SPA dist in production if available
         if self.dist_dir and self.dist_dir.exists():
-            self.app.mount("/", StaticFiles(directory=str(self.dist_dir), html=True), name="spa")
+            index_path = self.dist_dir / "index.html"
+            assets_dir = self.dist_dir / "assets"
+            if assets_dir.exists():
+                self.app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+            @self.app.get("/")
+            async def spa_root():
+                return FileResponse(index_path)
+
+            @self.app.get("/{full_path:path}")
+            async def spa_fallback(full_path: str):
+                target = self.dist_dir / full_path
+                if target.is_file():
+                    return FileResponse(target)
+                if index_path.exists():
+                    return FileResponse(index_path)
+                return HTMLResponse("<h1>SPA index.html not found</h1>", status_code=404)
 
 
 def create_app(state_cls: Optional[Type[BaseState]] = None, dist_dir: Optional[Path] = None) -> FastAPI:

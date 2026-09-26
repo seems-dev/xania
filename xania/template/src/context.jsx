@@ -19,7 +19,12 @@ export function StateProvider({ children }) {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws`;
+    let wsPath = "/ws";
+    const previewMatch = window.location.pathname.match(/^(\/preview\/[^/]+)/);
+    if (previewMatch) {
+      wsPath = previewMatch[1] + "/ws";
+    }
+    const wsUrl = `${protocol}//${host}${wsPath}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

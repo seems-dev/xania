@@ -61,6 +61,9 @@ def serialize(node: Any) -> str:
     from xania.components.base import Var
     if isinstance(node, Var):
         val = node._var_data.default_value if node._var_data and node._var_data.default_value is not None else node.to_js().strip('"')
+        field = node._var_data.field_name if node._var_data else ""
+        if field:
+            return f'<span data-state-field="{escape(field)}">{escape(str(val))}</span>'
         return escape(str(val))
 
     from xania.components.component import Component

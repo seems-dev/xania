@@ -106,9 +106,19 @@ export default function {page.file_stem.capitalize()}() {{
 
         return f"""{chr(10).join(import_lines)}
 
+const getBasename = () => {{
+  if (typeof window !== "undefined" && window.location) {{
+    const match = window.location.pathname.match(/^(\\/preview\\/[^/]+)/);
+    if (match) return match[1];
+  }}
+  return "";
+}};
+
 export const router = createBrowserRouter([
 {chr(10).join(route_entries)}
-]);
+], {{
+  basename: getBasename(),
+}});
 """
 
     def _generate_package_json(self, target_dir: Path) -> dict[str, Any]:

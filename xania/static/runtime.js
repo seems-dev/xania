@@ -17,21 +17,18 @@
   
   function connectWebSocket() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${location.host}/ws`;
+    let wsPath = "/ws";
+    const previewMatch = location.pathname.match(/^(\/preview\/[^/]+)/);
+    if (previewMatch) {
+      wsPath = previewMatch[1] + "/ws";
+    }
+    const wsUrl = `${protocol}//${location.host}${wsPath}`;
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      console.log("[Xania] WebSocket connected");
+      console.log("[Xania] WebSocket connected to", wsUrl);
       if (isReconnecting) {
-        const downtime = Date.now() - disconnectedAt;
-        // Only reload if the server was actually down for >2s (real restart)
-        // Brief disconnects (event handler errors) should NOT cause a reload
-        if (downtime > 2000) {
-          console.log("[FastRefresh] Server restarted. Reloading page...");
-          location.reload();
-        } else {
-          console.log("[Xania] WebSocket recovered from brief disconnect");
-        }
+        console.log("[Xania] WebSocket recovered from disconnect");
       }
       isReconnecting = false;
     };
@@ -42,6 +39,13 @@
         if (data.error) {
           console.warn("[Xania] Server error:", data.error);
           return;
+        }
+        if (data.delta) {
+          for (const [key, val] of Object.entries(data.delta)) {
+            document.querySelectorAll(`[data-state-field="${key}"]`).forEach(el => {
+              el.textContent = val;
+            });
+          }
         }
         if (data.updates) {
           App.applyUpdates(data.updates);
@@ -184,8 +188,15 @@
       if (closest) {
         component = closest.getAttribute("data-component");
       } else {
-        console.warn("No [data-component] found for element");
-        return;
+        component = "default";
+      }
+    }
+
+    // Auto-optimistic increment for buttons with state fields (e.g. likes/counter)
+    if (sourceElement) {
+      const fieldEl = sourceElement.querySelector("[data-state-field]") || sourceElement.closest("[data-state-field]");
+      if (fieldEl && !isNaN(parseInt(fieldEl.textContent, 10))) {
+        fieldEl.textContent = parseInt(fieldEl.textContent, 10) + 1;
       }
     }
 
@@ -249,7 +260,7 @@
       }
     }
 
-    const msg = JSON.stringify({ component, action, payload: payload || {} });
+    const msg = JSON.stringify({ component, action, name: action, payload: payload || {} });
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(msg);
     } else {

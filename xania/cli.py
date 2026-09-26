@@ -53,6 +53,20 @@ def _ensure_node_dependencies(web_dir: Path) -> None:
     saved_hash = hash_file.read_text().strip() if hash_file.exists() else ""
 
     if not node_modules.exists() or current_hash != saved_hash:
+        # Check if pre-cached node_modules exists (e.g. in container /opt/xania-cache or host ~/.cache/xania)
+        cache_dirs = [
+            Path("/opt/xania-cache/node_modules"),
+            Path.home() / ".cache" / "xania" / "node_modules",
+        ]
+        cached = next((c for c in cache_dirs if c.exists()), None)
+        if cached and not node_modules.exists():
+            try:
+                shutil.copytree(cached, node_modules, symlinks=True)
+                hash_file.write_text(current_hash)
+                return
+            except Exception:
+                pass
+
         click.echo("📦 Installing/updating frontend dependencies from package.json...")
         subprocess.run(["npm", "install", "--prefer-offline", "--no-audit", "--no-fund"], cwd=str(web_dir), check=False)
         hash_file.write_text(current_hash)

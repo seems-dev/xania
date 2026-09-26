@@ -14,6 +14,7 @@ env/
 # Packaging / build
 build/
 dist/
+!xania/template/dist/
 *.egg-info/
 .eggs/
 .env

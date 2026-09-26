@@ -42,6 +42,16 @@ def to_react_prop(key: str) -> str:
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
 
+BUTTON_VARIANTS = {
+    "primary": "bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white shadow-lg shadow-pink-500/25",
+    "secondary": "bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700",
+    "danger": "bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/25",
+    "success": "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/25",
+    "outline": "bg-transparent border border-zinc-700 hover:border-zinc-500 text-zinc-200",
+    "ghost": "bg-transparent hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100",
+}
+
+
 class Component:
     """Universal Base Component for the Xania SPA metamodel.
     
@@ -58,6 +68,15 @@ class Component:
         self.children: List[Any] = list(children)
         self.props: Dict[str, Any] = {}
         self.custom_attrs: Dict[str, Any] = {}
+
+        if self.tag == "button" and "variant" in props:
+            variant_val = str(props.pop("variant", "primary"))
+            v_style = BUTTON_VARIANTS.get(variant_val, BUTTON_VARIANTS["primary"])
+            base_style = "inline-flex items-center justify-center transition font-medium focus:outline-none cursor-pointer px-4 py-2 text-xs font-semibold rounded-xl"
+            existing_cls = str(props.get("class_name", props.get("className", "")))
+            props["class_name"] = f"{base_style} {v_style} {existing_cls}".strip()
+            if "className" in props:
+                del props["className"]
 
         for k, v in props.items():
             react_prop = to_react_prop(k)
@@ -77,7 +96,15 @@ class Component:
                 raw = v._var_data.default_value if isinstance(v, Var) and v._var_data and v._var_data.default_value is not None else (v.to_js().strip('"') if isinstance(v, Var) else str(v))
                 result["class_name"] = raw
             elif isinstance(v, EventHandler):
-                continue
+                target_str = getattr(v.target, "__qualname__", getattr(v.target, "__name__", str(v.target)))
+                method_name = target_str.split(".")[-1] if "." in target_str else target_str
+                method_name = method_name.strip("'\"")
+                if k == "onClick":
+                    result["onclick"] = f"App.dispatch(this, '{method_name}')"
+                elif k == "onChange":
+                    result["onchange"] = f"App.dispatch(this, '{method_name}')"
+                elif k == "onSubmit":
+                    result["onsubmit"] = f"App.dispatch(this, '{method_name}'); return false;"
             elif isinstance(v, Var):
                 val = v._var_data.default_value if v._var_data and v._var_data.default_value is not None else v.to_js().strip('"')
                 result[k] = val
