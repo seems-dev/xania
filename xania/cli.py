@@ -114,6 +114,25 @@ def _discover_pages_and_states(app_dir: Path) -> tuple[List[PageDef], Optional[t
                     page_comp = mod.index()
                 elif hasattr(mod, "page") and callable(mod.page):
                     page_comp = mod.page()
+                else:
+                    candidates = []
+                    for attr_name in dir(mod):
+                        if attr_name.startswith("_"):
+                            continue
+                        attr = getattr(mod, attr_name)
+                        if isinstance(attr, type) and issubclass(attr, BaseState):
+                            continue
+                        if (isinstance(attr, type) and issubclass(attr, Component)) or callable(attr):
+                            if getattr(attr, "__module__", None) == mod.__name__:
+                                candidates.append((attr_name, attr))
+                    
+                    page_candidates = [c for c in candidates if c[0].lower().endswith("page")]
+                    if page_candidates:
+                        chosen = page_candidates[0][1]
+                        page_comp = chosen() if isinstance(chosen, type) else chosen
+                    elif candidates:
+                        chosen = candidates[0][1]
+                        page_comp = chosen() if isinstance(chosen, type) else chosen
 
                 if page_comp:
                     pages.append(PageDef(route=route, component=page_comp))
