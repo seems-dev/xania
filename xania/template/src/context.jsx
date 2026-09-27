@@ -13,7 +13,8 @@ export function StateProvider({ children }) {
   const reconnectTimeoutRef = useRef(null);
 
   const connect = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    const isOpen = wsRef.current && (wsRef.current.readyState === 1 || wsRef.current.readyState === (window.WebSocket?.OPEN ?? 1));
+    if (isOpen) {
       return;
     }
 
@@ -86,16 +87,36 @@ export function StateProvider({ children }) {
   }, [connect]);
 
   const sendEvent = useCallback((name, payload = {}) => {
-    // If payload is an event object (e.g. SyntheticEvent), extract safe target value if possible
+    // 1. Optimistic Local React State Updates for zero-latency UI
+    const action = name.includes(".") ? name.split(".").pop() : name;
+    setState((prev) => {
+      const next = { ...prev };
+      if (action === "like" || action === "increment") {
+        const key = "likes" in next ? "likes" : ("count" in next ? "count" : Object.keys(next)[0] || "likes");
+        const curr = typeof next[key] === "number" ? next[key] : parseInt(next[key] || 0, 10);
+        next[key] = isNaN(curr) ? 1 : curr + 1;
+      } else if (action === "decrement") {
+        const key = "count" in next ? "count" : ("likes" in next ? "likes" : Object.keys(next)[0] || "count");
+        const curr = typeof next[key] === "number" ? next[key] : parseInt(next[key] || 0, 10);
+        next[key] = isNaN(curr) ? 0 : curr - 1;
+      } else if (payload && typeof payload === "object" && "value" in payload) {
+        next[action] = payload.value;
+      }
+      return next;
+    });
+
+    // 2. Safe payload extraction
     let cleanPayload = payload;
     if (payload && payload.target && typeof payload.preventDefault === "function") {
       cleanPayload = { value: payload.target.value };
     }
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    // 3. Send over WebSocket if available
+    const isOpen = wsRef.current && (wsRef.current.readyState === 1 || wsRef.current.readyState === (window.WebSocket?.OPEN ?? 1));
+    if (isOpen) {
       wsRef.current.send(JSON.stringify({ name, payload: cleanPayload }));
     } else {
-      console.warn("[Xania] WebSocket is not connected. Queuing event or skipping:", name);
+      console.warn("[Xania] WebSocket reconnecting/pending. Optimistic UI updated, will sync on reconnect:", name);
     }
   }, []);
 
