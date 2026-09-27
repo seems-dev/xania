@@ -29,12 +29,13 @@ def _scaffold_web_dir(target_dir: Path) -> None:
     if not target_dir.exists():
         target_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy template files if not present
+    # Copy template files, ensuring dist/ and core runtime are always updated
     for item in template_dir.glob("**/*"):
         if item.is_file():
             rel_path = item.relative_to(template_dir)
             dest_file = target_dir / rel_path
-            if not dest_file.exists():
+            # Always update dist/ and context.jsx, or if file doesn't exist yet
+            if not dest_file.exists() or rel_path.parts[0] == "dist" or rel_path.as_posix() == "src/context.jsx":
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(item, dest_file)
 

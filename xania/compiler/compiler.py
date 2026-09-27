@@ -104,6 +104,11 @@ export default function {page.file_stem.capitalize()}() {{
             import_lines.append(f'import {var_name} from "./pages/{page.file_stem}";')
             route_entries.append(f'  {{ path: "{page.route}", element: <{var_name} /> }},')
 
+        # Add fallback wildcard route to avoid React Router throwing 404
+        if self.pages:
+            fallback_var = self.pages[0].file_stem.capitalize()
+            route_entries.append(f'  {{ path: "*", element: <{fallback_var} /> }},')
+
         return f"""{chr(10).join(import_lines)}
 
 const getBasename = () => {{

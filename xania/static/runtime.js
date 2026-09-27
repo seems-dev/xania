@@ -367,6 +367,26 @@
         if (data.title) {
           document.title = data.title;
         }
+
+        // Re-execute dynamic scripts injected into content
+        const rootContainer = data.slot ? (document.querySelector(`[data-xania-slot="${data.slot}"]`) || appRoot) : appRoot;
+        if (rootContainer) {
+          rootContainer.querySelectorAll("script").forEach(oldScript => {
+            const newScript = document.createElement("script");
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+          });
+        }
+
+        // Re-hydrate Alpine.js if present
+        if (window.Alpine && typeof window.Alpine.initTree === "function") {
+          try {
+            window.Alpine.initTree(document.body);
+          } catch (e) {
+            console.warn("[Xania] Alpine initTree failed after navigation:", e);
+          }
+        }
       } else {
         location.href = path;
       }
@@ -377,11 +397,14 @@
   }
 
   document.addEventListener("click", (e) => {
-    // Intercept clicks on anchor tags
+    // Only intercept anchor tags explicitly marked for SPA navigation with data-spa
     const a = e.target.closest("a");
     if (a && a.href && a.origin === location.origin) {
-      // Don't intercept links with target="_blank" or special protocols
       if (a.target === "_blank" || a.href.startsWith("javascript:") || a.href.startsWith("mailto:")) {
+        return;
+      }
+      if (!a.hasAttribute("data-spa") && !a.closest("[data-spa]")) {
+        // Allow standard native navigation so full layouts, Alpine state, and scripts cleanly boot
         return;
       }
       e.preventDefault();
