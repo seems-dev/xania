@@ -12,8 +12,8 @@ class Cond(Component):
     (condition ? true_view : false_view)
     """
 
-    def __init__(self, condition: Union[Var, Any], true_view: Any, false_view: Optional[Any] = None):
-        super().__init__()
+    def __init__(self, condition: Union[Var, Any], true_view: Any, false_view: Optional[Any] = None, **kwargs):
+        super().__init__(**kwargs)
         self.condition = Var.create(condition) if not isinstance(condition, Var) else condition
         self.true_view = true_view
         self.false_view = false_view if false_view is not None else ""
@@ -29,9 +29,9 @@ class Cond(Component):
         return imports
 
 
-def cond(condition: Union[Var, Any], true_view: Any, false_view: Optional[Any] = None) -> Cond:
+def cond(condition: Union[Var, Any], true_view: Any, false_view: Optional[Any] = None, **kwargs) -> Cond:
     """Helper to conditionally render components based on a reactive Var."""
-    return Cond(condition, true_view, false_view)
+    return Cond(condition, true_view, false_view, **kwargs)
 
 
 class Foreach(Component):

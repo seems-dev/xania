@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__version__ = "4.0.4"
+__version__ = "4.0.5"
 
 # Reactive SPA Architecture (Xania 4.0)
 from xania.components.base import Var, VarData, EventHandler
