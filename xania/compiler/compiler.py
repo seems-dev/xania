@@ -106,7 +106,8 @@ export default function {page.file_stem.capitalize()}() {{
 
         # Add fallback wildcard route to avoid React Router throwing 404
         if self.pages:
-            fallback_var = self.pages[0].file_stem.capitalize()
+            root_pages = [p for p in self.pages if p.route == "/"]
+            fallback_var = root_pages[0].file_stem.capitalize() if root_pages else self.pages[0].file_stem.capitalize()
             route_entries.append(f'  {{ path: "*", element: <{fallback_var} /> }},')
 
         return f"""{chr(10).join(import_lines)}
